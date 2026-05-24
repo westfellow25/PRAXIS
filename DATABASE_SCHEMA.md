@@ -14,6 +14,7 @@ This is intentionally simple: it lets us validate the product data model before 
   "workspace": {},
   "playbooks": [],
   "runs": [],
+  "documents": [],
   "auditLog": []
 }
 ```
@@ -87,9 +88,43 @@ Runs are saved from Pilot Console.
 }
 ```
 
+## documents
+
+Documents are ingested from the Knowledge Base screen through `POST /api/documents`.
+
+```json
+{
+  "id": "uuid",
+  "name": "aml-policy.md",
+  "sourceType": "file",
+  "templateKey": "banking",
+  "summary": "Short deterministic summary",
+  "systems": ["ServiceNow", "KYC database"],
+  "keywords": ["policy", "approval", "transaction"],
+  "signals": {
+    "hasRiskLanguage": true,
+    "hasApiLanguage": false,
+    "hasMetricLanguage": true,
+    "hasPiiLanguage": true
+  },
+  "sizeBytes": 12000,
+  "wordCount": 1800,
+  "chunkCount": 14,
+  "chunks": [
+    {
+      "id": "chunk-001",
+      "text": "Chunk text used later for retrieval",
+      "characters": 900,
+      "keywords": ["policy", "audit"]
+    }
+  ],
+  "createdAt": "ISO timestamp"
+}
+```
+
 ## auditLog
 
-Server-side audit events for workspace saves, playbook saves, and run records.
+Server-side audit events for workspace saves, playbook saves, document ingestion, eval runs, and run records.
 
 ```json
 {

@@ -28,7 +28,7 @@
 | [x] | Connector readiness score | Оценка готовности источника | Готово | Есть scoring logic |
 | [x] | Ingestion plan | Connect -> Mask -> Index -> Prove | Готово | Есть визуальный ingestion flow |
 | [ ] | Реальные Slack/Teams connectors | Подключение к перепискам | Не начато | Нужны OAuth/API |
-| [ ] | Реальные Drive/SharePoint/Confluence connectors | Подключение документов | Не начато | Нужны API, indexing, permissions |
+| [ ] | Реальные Drive/SharePoint/Confluence connectors | Подключение документов | Частично | Knowledge Base уже принимает local file/paste ingestion, OAuth connectors ещё не готовы |
 | [ ] | Реальные Jira/ServiceNow/Salesforce connectors | Подключение workflow-систем | Не начато | Нужны интеграции |
 | [ ] | Реальные Snowflake/BigQuery/Postgres connectors | Подключение данных | Не начато | Нужны credentials, query layer |
 | [ ] | Реальные GitHub/GitLab connectors | Подключение коду и API docs | Не начато | Нужны OAuth/API |
@@ -56,7 +56,7 @@
 | [x] | Controls & evals | Human review, eval gate, audit trail, bottleneck | Готово | Есть readiness checklist |
 | [x] | Readiness blockers | Что мешает production | Готово | Есть статус readiness |
 | [ ] | Реальный graph database | Neo4j/TypeDB/Postgres graph | Не начато | Сейчас DOM/JS model |
-| [ ] | Автоматическое построение из корпоративных данных | Mining из Slack/docs/tickets/API | Не начато | Нужны connectors + LLM extraction |
+| [ ] | Автоматическое построение из корпоративных данных | Mining из Slack/docs/tickets/API | Частично | Документы можно загрузить вручную; автоматический mining из SaaS-систем ещё не готов |
 | [ ] | Semantic search over graph | Поиск по процессам/людям/решениям | Не начато | Нужен backend/index |
 
 ## 5. Workflow Mining Layer
@@ -155,6 +155,7 @@
 | [x] | Process Map | Карта процесса | Готово | Есть map + editor |
 | [x] | Context Graph | Живая карта компании | Готово | Есть graph lanes |
 | [x] | Connectors | Источники данных и readiness | Готово | Добавлено |
+| [x] | Knowledge Base | Загрузка документов клиента, chunks, signals, systems | Готово | Первый real connector без OAuth: file/paste ingestion |
 | [x] | Opportunity Board | Список AI-возможностей | Готово | Есть scoring table |
 | [x] | Tool Fabric | API/tools готовность | Готово | Есть readiness + manifest |
 | [x] | Governance | Policies, approvals, audit | Готово | Есть отдельный экран |
@@ -191,6 +192,6 @@
 | P1 | [ ] | Реальный eval runner | Проверять агента на datasets |
 | P1 | [ ] | OpenAPI/MCP import | Быстро превращать API в tools |
 | P1 | [ ] | Auth/permissions model | Enterprise-grade trust |
-| P2 | [ ] | First real connector | Например GitHub, Slack или Google Drive |
+| P2 | [x] | First real connector | Local file/paste document ingestion готов в Knowledge Base |
 | P2 | [ ] | Team collaboration | Несколько пользователей в workspace |
 | P2 | [ ] | Hosted deployment | Vercel/Render/Fly/Cloud Run |

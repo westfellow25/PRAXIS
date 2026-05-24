@@ -29,6 +29,7 @@ function createEmptyDb() {
     workspace: null,
     playbooks: [],
     runs: [],
+    documents: [],
     auditLog: [],
   };
 }
@@ -278,6 +279,89 @@ function buildWorkspacePatchFromIntake(text = "") {
   };
 }
 
+function extractKeywords(text = "") {
+  const stopwords = new Set([
+    "the",
+    "and",
+    "for",
+    "with",
+    "that",
+    "this",
+    "from",
+    "into",
+    "are",
+    "was",
+    "were",
+    "has",
+    "have",
+    "client",
+    "company",
+    "team",
+    "system",
+    "process",
+  ]);
+  const counts = new Map();
+  String(text)
+    .toLowerCase()
+    .match(/[a-z][a-z0-9_-]{3,}/g)
+    ?.forEach((word) => {
+      if (!stopwords.has(word)) counts.set(word, (counts.get(word) || 0) + 1);
+    });
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([word]) => word);
+}
+
+function chunkDocument(content = "", maxLength = 900) {
+  const normalized = String(content).replace(/\s+/g, " ").trim();
+  if (!normalized) return [];
+  const chunks = [];
+  for (let start = 0; start < normalized.length; start += maxLength) {
+    const text = normalized.slice(start, start + maxLength).trim();
+    chunks.push({
+      id: `chunk-${String(chunks.length + 1).padStart(3, "0")}`,
+      text,
+      characters: text.length,
+      keywords: extractKeywords(text).slice(0, 5),
+    });
+  }
+  return chunks;
+}
+
+function createDocumentRecord({ name, content, sourceType = "pasted" }) {
+  const safeContent = String(content || "").trim();
+  if (!safeContent) {
+    throw Object.assign(new Error("Document content is required"), { statusCode: 400 });
+  }
+  const safeName = String(name || "Untitled document").trim().slice(0, 160);
+  const chunks = chunkDocument(safeContent);
+  const systems = extractSystems(safeContent);
+  const templateKey = detectTemplateKey(safeContent);
+  const keywords = extractKeywords(safeContent);
+  const summary = safeContent.replace(/\s+/g, " ").slice(0, 360);
+  return {
+    id: randomUUID(),
+    name: safeName,
+    sourceType,
+    templateKey,
+    summary: `${summary}${safeContent.length > 360 ? "..." : ""}`,
+    systems,
+    keywords,
+    signals: {
+      hasRiskLanguage: /risk|compliance|approval|policy|legal|regulated|audit/i.test(safeContent),
+      hasApiLanguage: /api|endpoint|schema|payload|oauth|webhook|database/i.test(safeContent),
+      hasMetricLanguage: /\d+\s*(min|minute|hour|day|%|percent)|roi|cost|save|sla/i.test(safeContent),
+      hasPiiLanguage: /pii|customer|kyc|account|email|phone|address|ssn/i.test(safeContent),
+    },
+    sizeBytes: Buffer.byteLength(safeContent, "utf8"),
+    wordCount: safeContent.split(/\s+/).filter(Boolean).length,
+    chunkCount: chunks.length,
+    chunks,
+    createdAt: new Date().toISOString(),
+  };
+}
+
 function scoreServerTool(tool) {
   let score = 25;
   if (tool.name && tool.name.length > 3) score += 15;
@@ -413,6 +497,66 @@ async function handleApi(req, res, url) {
 
   if (req.method === "GET" && url.pathname === "/api/runs") {
     sendJson(res, 200, { ok: true, runs: Array.isArray(db.runs) ? db.runs : [] });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/documents") {
+    sendJson(res, 200, { ok: true, documents: Array.isArray(db.documents) ? db.documents : [] });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/documents") {
+    const body = await readJsonBody(req);
+    const document = createDocumentRecord({
+      name: body.name,
+      content: body.content,
+      sourceType: body.sourceType || "pasted",
+    });
+    const nextDb = appendAudit(
+      {
+        ...db,
+        documents: [document, ...(Array.isArray(db.documents) ? db.documents : [])].slice(0, 500),
+      },
+      "document.ingested",
+      { documentId: document.id, name: document.name, chunkCount: document.chunkCount, systems: document.systems.length },
+    );
+    const saved = await writeDb(nextDb);
+    sendJson(res, 201, { ok: true, document, totalDocuments: saved.documents.length });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/documents/search") {
+    const body = await readJsonBody(req);
+    const query = String(body.query || "").toLowerCase().trim();
+    const documents = Array.isArray(db.documents) ? db.documents : [];
+    const results = documents
+      .map((document) => {
+        const haystack = [document.name, document.summary, ...(document.keywords || []), ...(document.systems || [])].join(" ").toLowerCase();
+        const chunkMatches = (document.chunks || []).filter((chunk) => chunk.text.toLowerCase().includes(query)).slice(0, 3);
+        const score = query ? (haystack.includes(query) ? 2 : 0) + chunkMatches.length : 1;
+        return { document, chunkMatches, score };
+      })
+      .filter((result) => result.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
+    sendJson(res, 200, { ok: true, query, results });
+    return;
+  }
+
+  if (req.method === "DELETE" && url.pathname.startsWith("/api/documents/")) {
+    const documentId = decodeURIComponent(url.pathname.replace("/api/documents/", ""));
+    const currentDocuments = Array.isArray(db.documents) ? db.documents : [];
+    const document = currentDocuments.find((item) => item.id === documentId);
+    const nextDb = appendAudit(
+      {
+        ...db,
+        documents: currentDocuments.filter((item) => item.id !== documentId),
+      },
+      "document.deleted",
+      { documentId, name: document?.name },
+    );
+    const saved = await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, deleted: Boolean(document), totalDocuments: saved.documents.length });
     return;
   }
 

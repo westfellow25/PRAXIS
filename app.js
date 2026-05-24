@@ -1,5 +1,6 @@
 const STORAGE_KEY = "praxis-mvp-workspace-v1";
 const PLAYBOOK_STORAGE_KEY = "praxis-mvp-playbooks-v1";
+const DOCUMENT_STORAGE_KEY = "praxis-mvp-documents-v1";
 const API_BASE = "/api";
 let workspaceSyncTimer = null;
 let playbookSyncTimer = null;
@@ -10,7 +11,9 @@ const state = {
   evalsRun: false,
   project: null,
   playbooks: [],
+  documents: [],
   playbookSearch: "",
+  documentSearch: "",
   backendOnline: false,
 };
 
@@ -909,9 +912,10 @@ async function apiRequest(path, options = {}) {
 
 async function hydrateFromBackend() {
   try {
-    const [workspaceResponse, playbooksResponse] = await Promise.all([
+    const [workspaceResponse, playbooksResponse, documentsResponse] = await Promise.all([
       apiRequest("/workspace"),
       apiRequest("/playbooks"),
+      apiRequest("/documents"),
     ]);
     state.backendOnline = true;
 
@@ -936,6 +940,11 @@ async function hydrateFromBackend() {
         PLAYBOOK_STORAGE_KEY,
         JSON.stringify(state.playbooks.filter((playbook) => !playbook.id.startsWith("default-"))),
       );
+    }
+
+    if (Array.isArray(documentsResponse.documents)) {
+      state.documents = documentsResponse.documents.map(normalizeDocument);
+      localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(state.documents));
     }
 
     setStorageStatus("Backend synced", "green");
@@ -1051,6 +1060,83 @@ function savePlaybooks() {
   const customPlaybooks = state.playbooks.filter((playbook) => !playbook.id.startsWith("default-"));
   localStorage.setItem(PLAYBOOK_STORAGE_KEY, JSON.stringify(customPlaybooks));
   schedulePlaybookSync();
+}
+
+function normalizeDocument(document) {
+  return {
+    id: document.id || `local-doc-${Date.now()}`,
+    name: document.name || "Untitled document",
+    sourceType: document.sourceType || "pasted",
+    templateKey: document.templateKey || inferIndustryFromProject({ workflowName: document.name }).toLowerCase(),
+    summary: document.summary || "No summary yet.",
+    systems: Array.isArray(document.systems) ? document.systems : [],
+    keywords: Array.isArray(document.keywords) ? document.keywords : [],
+    signals: document.signals || {},
+    sizeBytes: Number(document.sizeBytes) || 0,
+    wordCount: Number(document.wordCount) || 0,
+    chunkCount: Number(document.chunkCount) || 0,
+    chunks: Array.isArray(document.chunks) ? document.chunks : [],
+    createdAt: document.createdAt || new Date().toISOString(),
+  };
+}
+
+function loadDocuments() {
+  try {
+    const saved = localStorage.getItem(DOCUMENT_STORAGE_KEY);
+    return saved ? JSON.parse(saved).map(normalizeDocument) : [];
+  } catch (error) {
+    console.warn("Could not load documents", error);
+    return [];
+  }
+}
+
+function saveDocumentsLocal() {
+  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(state.documents));
+}
+
+function createLocalDocument(name, content, sourceType = "pasted") {
+  const cleanContent = String(content || "").replace(/\s+/g, " ").trim();
+  const keywords = unique((cleanContent.toLowerCase().match(/[a-z][a-z0-9_-]{3,}/g) || []).slice(0, 30)).slice(0, 10);
+  const systems = [
+    "ServiceNow",
+    "Salesforce",
+    "Slack",
+    "Jira",
+    "Zendesk",
+    "Snowflake",
+    "BigQuery",
+    "KYC database",
+    "transaction warehouse",
+    "sanctions API",
+    "policy docs",
+    "CLM",
+    "CRM",
+  ].filter((system) => cleanContent.toLowerCase().includes(system.toLowerCase()));
+  const chunks = [];
+  for (let start = 0; start < cleanContent.length; start += 900) {
+    const text = cleanContent.slice(start, start + 900);
+    chunks.push({ id: `chunk-${chunks.length + 1}`, text, characters: text.length, keywords: keywords.slice(0, 5) });
+  }
+  return normalizeDocument({
+    id: `local-doc-${Date.now()}`,
+    name: name || "Pasted document",
+    sourceType,
+    templateKey: pickIntakeTemplate(cleanContent).label,
+    summary: `${cleanContent.slice(0, 360)}${cleanContent.length > 360 ? "..." : ""}`,
+    systems,
+    keywords,
+    signals: {
+      hasRiskLanguage: /risk|compliance|approval|policy|legal|regulated|audit/i.test(cleanContent),
+      hasApiLanguage: /api|endpoint|schema|payload|oauth|webhook|database/i.test(cleanContent),
+      hasMetricLanguage: /\d+\s*(min|minute|hour|day|%|percent)|roi|cost|save|sla/i.test(cleanContent),
+      hasPiiLanguage: /pii|customer|kyc|account|email|phone|address|ssn/i.test(cleanContent),
+    },
+    sizeBytes: cleanContent.length,
+    wordCount: cleanContent.split(/\s+/).filter(Boolean).length,
+    chunkCount: chunks.length,
+    chunks,
+    createdAt: new Date().toISOString(),
+  });
 }
 
 function setStorageStatus(text, variant = "") {
@@ -1580,8 +1666,10 @@ function buildContextGraph() {
   const systems = unique([
     ...project.processSteps.flatMap((step) => splitSystems(step.system)),
     ...project.connectors.map((connector) => connector.name),
+    ...state.documents.flatMap((document) => document.systems),
   ]);
   const connectorHealth = getConnectorHealth();
+  const documentHealth = getDocumentHealth();
   const bottleneck =
     project.processSteps.find((step) => step.tags.some((tag) => tag.toLowerCase() === "bottleneck")) ||
     project.processSteps[0];
@@ -1618,6 +1706,14 @@ function buildContextGraph() {
       })),
     },
     {
+      title: "Knowledge sources",
+      type: "control",
+      nodes: state.documents.slice(0, 8).map((document) => ({
+        name: document.name,
+        detail: `${document.chunkCount} chunks; ${document.systems.length} systems; ${document.keywords.slice(0, 3).join(", ") || "no keywords"}.`,
+      })),
+    },
+    {
       title: "Controls & evals",
       type: "control",
       nodes: [
@@ -1646,6 +1742,11 @@ function buildContextGraph() {
       detail: `${project.tools.length} agent-ready tools described with callable signatures.`,
     },
     {
+      name: "Knowledge base",
+      ok: documentHealth.ready,
+      detail: `${documentHealth.count} documents, ${documentHealth.totalChunks} chunks, ${documentHealth.systems.length} systems found in docs.`,
+    },
+    {
       name: "Human-in-loop",
       ok: Number.parseInt(project.humanReview, 10) > 0 || project.humanReview.includes("100"),
       detail: `${project.humanReview} human review target keeps risk decisions accountable.`,
@@ -1657,7 +1758,7 @@ function buildContextGraph() {
     },
   ];
 
-  return { lanes, readiness, bottleneck, selectedOpportunity, systems, roles, connectorHealth };
+  return { lanes, readiness, bottleneck, selectedOpportunity, systems, roles, connectorHealth, documentHealth };
 }
 
 function renderContextGraph() {
@@ -1695,7 +1796,7 @@ function renderContextGraph() {
     </article>
     <article class="context-summary-card">
       <strong>Deployment surface</strong>
-      <span>${graph.roles.length} owner groups, ${state.project.connectors.length} connectors, ${state.project.tools.length} tools, ${state.project.processSteps.length} workflow steps.</span>
+      <span>${graph.roles.length} owner groups, ${state.project.connectors.length} connectors, ${state.documents.length} documents, ${state.project.tools.length} tools, ${state.project.processSteps.length} workflow steps.</span>
     </article>
     <article class="context-summary-card">
       <strong>Why this matters</strong>
@@ -1917,6 +2018,138 @@ function deleteConnector(index) {
   renderConnectors();
   renderContextGraph();
   renderDeploymentPlan();
+  renderReadout();
+}
+
+function getDocumentHealth() {
+  const totalChunks = state.documents.reduce((sum, document) => sum + document.chunkCount, 0);
+  const systems = unique(state.documents.flatMap((document) => document.systems));
+  const riskDocs = state.documents.filter((document) => document.signals.hasRiskLanguage || document.signals.hasPiiLanguage).length;
+  return {
+    count: state.documents.length,
+    totalChunks,
+    systems,
+    riskDocs,
+    ready: state.documents.length > 0 && totalChunks > 0,
+  };
+}
+
+function renderDocuments() {
+  const health = getDocumentHealth();
+  document.querySelector("#document-health").textContent = health.ready ? `${health.count} docs indexed` : "No documents";
+  document.querySelector("#document-health").className = `status-pill ${health.ready ? "green" : ""}`.trim();
+
+  const query = state.documentSearch.toLowerCase().trim();
+  const filtered = state.documents.filter((document) =>
+    [document.name, document.summary, document.systems.join(" "), document.keywords.join(" ")]
+      .join(" ")
+      .toLowerCase()
+      .includes(query),
+  );
+
+  document.querySelector("#document-insights").innerHTML = `
+    <article class="document-insight-card">
+      <span>Documents</span>
+      <strong>${health.count}</strong>
+      <p>${health.totalChunks} searchable chunks prepared for retrieval.</p>
+    </article>
+    <article class="document-insight-card">
+      <span>Systems found</span>
+      <strong>${health.systems.length}</strong>
+      <p>${health.systems.length ? health.systems.join(", ") : "Upload client docs to discover systems."}</p>
+    </article>
+    <article class="document-insight-card">
+      <span>Risk-bearing docs</span>
+      <strong>${health.riskDocs}</strong>
+      <p>Docs with policy, approval, regulated, audit, PII, or customer language.</p>
+    </article>
+  `;
+
+  document.querySelector("#document-list").innerHTML = filtered.length
+    ? filtered
+        .map(
+          (document) => `
+            <article class="document-card">
+              <div>
+                <h3>${escapeHtml(document.name)}</h3>
+                <p>${escapeHtml(document.summary)}</p>
+                <div class="tag-list">
+                  <span class="tag">${escapeHtml(document.sourceType)}</span>
+                  <span class="tag">${document.wordCount.toLocaleString()} words</span>
+                  <span class="tag">${document.chunkCount} chunks</span>
+                  ${document.systems.slice(0, 4).map((system) => `<span class="tag">${escapeHtml(system)}</span>`).join("")}
+                </div>
+              </div>
+              <div class="document-card-side">
+                <strong>${escapeHtml(document.templateKey)}</strong>
+                <span>${escapeHtml(document.keywords.slice(0, 5).join(", ") || "No keywords yet")}</span>
+                <button class="delete-button" data-delete-document="${escapeHtml(document.id)}" type="button">Delete</button>
+              </div>
+            </article>
+          `,
+        )
+        .join("")
+    : `<article class="empty-state">No matching documents yet.</article>`;
+
+  document.querySelectorAll("[data-delete-document]").forEach((button) => {
+    button.addEventListener("click", () => deleteDocument(button.dataset.deleteDocument));
+  });
+}
+
+async function ingestDocument(name, content, sourceType = "pasted") {
+  const cleanContent = String(content || "").trim();
+  if (!cleanContent) {
+    setStorageStatus("Document is empty", "amber");
+    return;
+  }
+  try {
+    const response = await apiRequest("/documents", {
+      method: "POST",
+      body: JSON.stringify({ name, content: cleanContent, sourceType }),
+    });
+    state.documents = [normalizeDocument(response.document), ...state.documents.filter((document) => document.id !== response.document.id)];
+    state.backendOnline = true;
+    setStorageStatus("Document ingested", "green");
+  } catch (error) {
+    console.info("Backend document ingestion unavailable; using browser fallback", error);
+    state.documents = [createLocalDocument(name, cleanContent, sourceType), ...state.documents];
+    setStorageStatus("Document saved locally", "amber");
+  }
+  saveDocumentsLocal();
+  renderDocuments();
+  renderContextGraph();
+  renderReadout();
+}
+
+async function ingestPastedDocument() {
+  const nameInput = document.querySelector("#document-name");
+  const textArea = document.querySelector("#document-text");
+  await ingestDocument(nameInput.value.trim() || "Pasted client document", textArea.value, "pasted");
+  nameInput.value = "";
+  textArea.value = "";
+}
+
+async function ingestDocumentFiles(event) {
+  const files = [...(event.target.files || [])];
+  for (const file of files) {
+    const content = await file.text();
+    await ingestDocument(file.name, content, "file");
+  }
+  event.target.value = "";
+}
+
+async function deleteDocument(documentId) {
+  state.documents = state.documents.filter((document) => document.id !== documentId);
+  saveDocumentsLocal();
+  try {
+    await apiRequest(`/documents/${encodeURIComponent(documentId)}`, { method: "DELETE" });
+    setStorageStatus("Document deleted", "green");
+  } catch (error) {
+    console.info("Backend document delete skipped", error);
+    setStorageStatus("Document deleted locally", "amber");
+  }
+  renderDocuments();
+  renderContextGraph();
   renderReadout();
 }
 
@@ -3052,6 +3285,7 @@ function exportWorkspace() {
     project: state.project,
     selectedOpportunity: state.selectedOpportunity,
     evals: state.project.evalCases,
+    documents: state.documents,
     playbookLibrary: state.playbooks,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -3080,6 +3314,10 @@ function importWorkspace(event) {
         state.playbooks = parsed.playbookLibrary.map(normalizePlaybook);
         savePlaybooks();
       }
+      if (Array.isArray(parsed.documents)) {
+        state.documents = parsed.documents.map(normalizeDocument);
+        saveDocumentsLocal();
+      }
       state.evalsRun = false;
       saveProject("Imported JSON");
       renderAll();
@@ -3099,6 +3337,7 @@ function renderReadout() {
   const project = state.project;
   const value = computeValueModel();
   const connectors = getConnectorHealth();
+  const documents = getDocumentHealth();
   const governance = getGovernanceHealth();
   const bottleneck =
     project.processSteps.find((step) => step.tags.some((tag) => tag.toLowerCase() === "bottleneck")) ||
@@ -3147,6 +3386,14 @@ function renderReadout() {
       <p>
         ${project.connectors.length} source systems mapped, ${connectors.sensitive} sensitive sources,
         ${connectors.blocked} blocked connector${connectors.blocked === 1 ? "" : "s"}.
+      </p>
+    </article>
+    <article class="readout-card">
+      <div class="eyebrow">Knowledge</div>
+      <h3>${documents.count} docs indexed</h3>
+      <p>
+        ${documents.totalChunks} chunks prepared for retrieval, ${documents.systems.length} systems found,
+        ${documents.riskDocs} risk-bearing document${documents.riskDocs === 1 ? "" : "s"}.
       </p>
     </article>
     <article class="readout-card">
@@ -3339,6 +3586,7 @@ function renderAll(options = {}) {
   renderProcessEditor();
   renderContextGraph();
   renderConnectors();
+  renderDocuments();
   renderOpportunityTable();
   renderSelectedOpportunity();
   renderValueModel();
@@ -3363,6 +3611,7 @@ document.querySelectorAll("[data-view]").forEach((button) => {
 
 state.project = loadProject();
 state.playbooks = loadPlaybooks();
+state.documents = loadDocuments();
 
 document.querySelector("#project-form").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -3381,6 +3630,16 @@ document.querySelectorAll("[data-intake-preset]").forEach((button) => {
 });
 document.querySelector("#add-step").addEventListener("click", addProcessStep);
 document.querySelector("#add-connector").addEventListener("click", addConnector);
+document.querySelector("#document-files").addEventListener("change", ingestDocumentFiles);
+document.querySelector("#ingest-document-text").addEventListener("click", ingestPastedDocument);
+document.querySelector("#clear-document-text").addEventListener("click", () => {
+  document.querySelector("#document-name").value = "";
+  document.querySelector("#document-text").value = "";
+});
+document.querySelector("#document-search").addEventListener("input", (event) => {
+  state.documentSearch = event.target.value;
+  renderDocuments();
+});
 document.querySelector("#add-tool").addEventListener("click", addTool);
 document.querySelector("#add-policy").addEventListener("click", addPolicy);
 document.querySelector("#add-approval").addEventListener("click", addApproval);

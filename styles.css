@@ -1151,6 +1151,118 @@ p {
   font-weight: 850;
 }
 
+.document-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.document-form,
+.document-insights,
+.document-list {
+  display: grid;
+  gap: 12px;
+}
+
+.document-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.document-form input,
+.document-form textarea,
+.search-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  padding: 10px 11px;
+}
+
+.document-form textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+
+.document-insight-card,
+.document-card,
+.empty-state {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(248, 245, 236, 0.72);
+  padding: 14px;
+}
+
+.document-insight-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.document-insight-card strong {
+  display: block;
+  margin-top: 7px;
+  color: var(--ink);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.document-insight-card p,
+.document-card p,
+.empty-state {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.document-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 14px;
+  align-items: start;
+}
+
+.document-card h3 {
+  margin: 0 0 7px;
+}
+
+.document-card-side {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.document-card-side strong {
+  width: fit-content;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  padding: 6px 8px;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.document-card-side .delete-button {
+  min-height: 34px;
+  border: 1px solid rgba(168, 74, 66, 0.24);
+  border-radius: 7px;
+  background: var(--red-soft);
+  color: var(--red);
+  cursor: pointer;
+  font-weight: 850;
+}
+
 .governance-matrix,
 .approval-board,
 .audit-trail,
@@ -2070,6 +2182,10 @@ p {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .document-card {
+    grid-template-columns: 1fr;
+  }
+
   .connector-editor-card .span-2 {
     grid-column: span 2;
   }
@@ -2175,6 +2291,7 @@ p {
   .connector-row,
   .tool-editor-card,
   .connector-editor-card,
+  .document-card,
   .ingestion-step,
   .trace-step,
   .eval-item,

@@ -34,48 +34,52 @@
             <span class="nav-icon">04</span>
             Connectors
           </button>
-          <button class="nav-item" data-view="fabric">
+          <button class="nav-item" data-view="knowledge">
             <span class="nav-icon">05</span>
+            Knowledge Base
+          </button>
+          <button class="nav-item" data-view="fabric">
+            <span class="nav-icon">06</span>
             Tool Fabric
           </button>
           <button class="nav-item" data-view="governance">
-            <span class="nav-icon">06</span>
+            <span class="nav-icon">07</span>
             Governance
           </button>
           <button class="nav-item" data-view="process">
-            <span class="nav-icon">07</span>
+            <span class="nav-icon">08</span>
             Process Map
           </button>
           <button class="nav-item" data-view="opportunities">
-            <span class="nav-icon">08</span>
+            <span class="nav-icon">09</span>
             Opportunities
           </button>
           <button class="nav-item" data-view="value">
-            <span class="nav-icon">09</span>
+            <span class="nav-icon">10</span>
             Value Model
           </button>
           <button class="nav-item" data-view="builder">
-            <span class="nav-icon">10</span>
+            <span class="nav-icon">11</span>
             Agent Builder
           </button>
           <button class="nav-item" data-view="pilot">
-            <span class="nav-icon">11</span>
+            <span class="nav-icon">12</span>
             Pilot Console
           </button>
           <button class="nav-item" data-view="evals">
-            <span class="nav-icon">12</span>
+            <span class="nav-icon">13</span>
             Eval Center
           </button>
           <button class="nav-item" data-view="deployment">
-            <span class="nav-icon">13</span>
+            <span class="nav-icon">14</span>
             Deployment
           </button>
           <button class="nav-item" data-view="readout">
-            <span class="nav-icon">14</span>
+            <span class="nav-icon">15</span>
             Executive Readout
           </button>
           <button class="nav-item" data-view="playbooks">
-            <span class="nav-icon">15</span>
+            <span class="nav-icon">16</span>
             Playbooks
           </button>
         </nav>
@@ -377,6 +381,59 @@
               </div>
             </div>
             <div class="connector-editor" id="connector-editor"></div>
+          </article>
+        </section>
+
+        <section class="view" id="knowledge">
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Knowledge ingestion</div>
+                  <h2>Upload or paste client documents into PRAXIS context</h2>
+                </div>
+                <span class="status-pill" id="document-health">No documents</span>
+              </div>
+              <div class="document-actions">
+                <label class="ghost-button file-button" for="document-files">Upload files</label>
+                <input id="document-files" type="file" accept=".txt,.md,.json,text/plain,text/markdown,application/json" multiple />
+              </div>
+              <div class="document-form">
+                <label>
+                  Document name
+                  <input id="document-name" type="text" placeholder="Example: AML policy notes" />
+                </label>
+                <label>
+                  Paste document text
+                  <textarea id="document-text" rows="8" placeholder="Paste policy docs, API notes, meeting notes, RFP fragments, or process descriptions..."></textarea>
+                </label>
+                <div class="form-actions">
+                  <button class="ghost-button small" id="clear-document-text">Clear</button>
+                  <button class="primary-button small" id="ingest-document-text">Ingest document</button>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Knowledge signals</div>
+                  <h2>What PRAXIS extracted from documents</h2>
+                </div>
+              </div>
+              <div class="document-insights" id="document-insights"></div>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Document library</div>
+                <h2>Search ingested context sources</h2>
+              </div>
+              <input class="search-input" id="document-search" type="search" placeholder="Search documents, systems, keywords..." />
+            </div>
+            <div class="document-list" id="document-list"></div>
           </article>
         </section>
 

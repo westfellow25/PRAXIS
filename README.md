@@ -49,6 +49,10 @@ The backend lives in `server.js` and exposes:
 - `PUT /api/playbooks`
 - `GET /api/runs`
 - `POST /api/runs`
+- `GET /api/documents`
+- `POST /api/documents`
+- `POST /api/documents/search`
+- `DELETE /api/documents/:id`
 - `POST /api/intake`
 - `POST /api/intake/workspace`
 - `POST /api/evals/run`
@@ -67,6 +71,8 @@ See `DATABASE_SCHEMA.md` for the current schema.
 - View a generated Context Graph with people, systems, agent tools, controls, and readiness blockers.
 - Manage connector readiness across source systems, data classes, access modes, refresh cadence, and blockers.
 - View an ingestion plan that explains how PRAXIS connects, masks, indexes, and proves client data.
+- Upload or paste `.txt`, `.md`, and `.json` client documents into Knowledge Base.
+- Extract document summaries, chunks, keywords, systems, and risk signals for retrieval-ready context.
 - Score API/tool readiness and edit owner, auth model, risk, callable signatures, and descriptions.
 - Generate an MCP-style tool manifest preview.
 - Manage governance policies, approval gates, audit trail requirements, and governance readiness.
