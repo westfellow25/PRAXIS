@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PRAXIS MVP · FDE Operating System</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">PX</div>
+          <div>
+            <div class="brand-title">PRAXIS</div>
+            <div class="brand-subtitle">FDE Operating System</div>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="Primary">
+          <button class="nav-item active" data-view="intake">
+            <span class="nav-icon">01</span>
+            AI Intake
+          </button>
+          <button class="nav-item" data-view="workspace">
+            <span class="nav-icon">02</span>
+            Workspace
+          </button>
+          <button class="nav-item" data-view="context">
+            <span class="nav-icon">03</span>
+            Context Graph
+          </button>
+          <button class="nav-item" data-view="connectors">
+            <span class="nav-icon">04</span>
+            Connectors
+          </button>
+          <button class="nav-item" data-view="fabric">
+            <span class="nav-icon">05</span>
+            Tool Fabric
+          </button>
+          <button class="nav-item" data-view="governance">
+            <span class="nav-icon">06</span>
+            Governance
+          </button>
+          <button class="nav-item" data-view="process">
+            <span class="nav-icon">07</span>
+            Process Map
+          </button>
+          <button class="nav-item" data-view="opportunities">
+            <span class="nav-icon">08</span>
+            Opportunities
+          </button>
+          <button class="nav-item" data-view="value">
+            <span class="nav-icon">09</span>
+            Value Model
+          </button>
+          <button class="nav-item" data-view="builder">
+            <span class="nav-icon">10</span>
+            Agent Builder
+          </button>
+          <button class="nav-item" data-view="pilot">
+            <span class="nav-icon">11</span>
+            Pilot Console
+          </button>
+          <button class="nav-item" data-view="evals">
+            <span class="nav-icon">12</span>
+            Eval Center
+          </button>
+          <button class="nav-item" data-view="deployment">
+            <span class="nav-icon">13</span>
+            Deployment
+          </button>
+          <button class="nav-item" data-view="readout">
+            <span class="nav-icon">14</span>
+            Executive Readout
+          </button>
+          <button class="nav-item" data-view="playbooks">
+            <span class="nav-icon">15</span>
+            Playbooks
+          </button>
+        </nav>
+
+        <div class="sidebar-card">
+          <div class="eyebrow">Demo Case</div>
+          <h2>AML Alert Briefing</h2>
+          <p>Banking workflow: turn a 45 minute analyst investigation into a 9 minute agent-assisted review.</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <div class="eyebrow">Design partner workspace</div>
+            <h1 id="view-title">AI Intake</h1>
+          </div>
+          <div class="top-actions">
+            <button class="ghost-button" id="save-workspace">Save workspace</button>
+            <button class="ghost-button" id="export-workspace">Export JSON</button>
+            <label class="ghost-button file-button" for="import-workspace">Import JSON</label>
+            <input id="import-workspace" type="file" accept="application/json,.json" />
+            <button class="ghost-button" id="reset-demo">Reset demo</button>
+            <button class="primary-button" id="run-demo">Run evals</button>
+          </div>
+        </header>
+
+        <section class="metrics-strip" aria-label="Key metrics">
+          <article>
+            <span>Target KPI</span>
+            <strong id="metric-target-kpi">45m to 9m</strong>
+          </article>
+          <article>
+            <span>Readiness</span>
+            <strong id="readiness-score">68%</strong>
+          </article>
+          <article>
+            <span>Expected ROI</span>
+            <strong id="metric-roi">$2.4M</strong>
+          </article>
+          <article>
+            <span>Human review</span>
+            <strong id="metric-human-review">18%</strong>
+          </article>
+        </section>
+
+        <section class="view active" id="intake">
+          <div class="two-column">
+            <article class="panel hero-panel">
+              <div class="eyebrow">AI intake</div>
+              <h2>Paste a messy client process. PRAXIS turns it into a deployment workspace.</h2>
+              <p class="lead">
+                In the real product this will call an LLM. In this local MVP it uses a deterministic
+                intake engine so we can build the product loop first: text to map, map to agent, agent to evals.
+              </p>
+              <div class="intake-presets">
+                <button class="preset-button" data-intake-preset="banking">Bank AML</button>
+                <button class="preset-button" data-intake-preset="insurance">Insurance claims</button>
+                <button class="preset-button" data-intake-preset="legal">Legal review</button>
+                <button class="preset-button" data-intake-preset="support">SaaS support</button>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Generated preview</div>
+                  <h2 id="intake-preview-title">No intake generated yet</h2>
+                </div>
+                <span class="status-pill" id="intake-confidence">Waiting</span>
+              </div>
+              <div class="intake-preview" id="intake-preview">
+                Choose a preset or paste your own process description. PRAXIS will infer the best first pilot.
+              </div>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Raw process description</div>
+                <h2>Describe what happens at the client today</h2>
+              </div>
+              <div class="panel-actions">
+                <button class="ghost-button small" id="clear-intake">Clear</button>
+                <button class="primary-button small" id="generate-intake">Generate workspace</button>
+              </div>
+            </div>
+            <textarea class="intake-textarea" id="intake-text" rows="10" spellcheck="true"></textarea>
+            <div class="intake-help">
+              <article>
+                <strong>What to paste</strong>
+                <span>Meeting notes, client discovery call summary, workflow description, RFP fragment, or a messy Slack recap.</span>
+              </article>
+              <article>
+                <strong>What PRAXIS extracts</strong>
+                <span>Client, workflow, bottleneck, process steps, first agent, tools, eval gates, expected KPI and ROI.</span>
+              </article>
+              <article>
+                <strong>Why this matters</strong>
+                <span>This is the FDE leverage point: discovery becomes structured deployment data instead of loose notes.</span>
+              </article>
+            </div>
+          </article>
+        </section>
+
+        <section class="view" id="workspace">
+          <div class="two-column">
+            <article class="panel hero-panel">
+              <div class="eyebrow">What PRAXIS does</div>
+              <h2>Turns a messy enterprise process into a safe AI deployment path.</h2>
+              <p class="lead">
+                The FDE does not start from a blank chat window. PRAXIS gives them the map:
+                process context, systems, tools, risks, evals, owners, adoption status, and ROI.
+              </p>
+              <div class="simple-flow">
+                <div>Messy work</div>
+                <span></span>
+                <div>Context graph</div>
+                <span></span>
+                <div>Agent workflow</div>
+                <span></span>
+                <div>Measured ROI</div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Client brief</div>
+                  <h2 id="client-name">Northstar Bank</h2>
+                </div>
+                <span class="status-pill green" id="pilot-status">Pilot ready</span>
+              </div>
+              <dl class="brief-list">
+                <div>
+                  <dt>Business problem</dt>
+                  <dd id="business-problem">AML analysts spend most of their time collecting evidence across five systems before they can make a decision.</dd>
+                </div>
+                <div>
+                  <dt>First agent</dt>
+                  <dd id="first-agent">AML Alert Briefing Agent: collect evidence, check policy, draft recommendation, route to human review.</dd>
+                </div>
+                <div>
+                  <dt>Success metric</dt>
+                  <dd id="success-metric">Reduce investigation prep time from 45 minutes to under 10 minutes without critical compliance errors.</dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Workspace editor</div>
+                <h2>Edit the design partner brief</h2>
+              </div>
+              <span class="status-pill" id="storage-status">Local draft</span>
+            </div>
+            <form class="form-grid" id="project-form">
+              <label>
+                Client
+                <input name="clientName" id="field-client-name" type="text" />
+              </label>
+              <label>
+                Workflow
+                <input name="workflowName" id="field-workflow-name" type="text" />
+              </label>
+              <label>
+                Before time
+                <input name="beforeTime" id="field-before-time" type="text" />
+              </label>
+              <label>
+                Target time
+                <input name="afterTime" id="field-after-time" type="text" />
+              </label>
+              <label>
+                Expected ROI
+                <input name="expectedRoi" id="field-expected-roi" type="text" />
+              </label>
+              <label>
+                Human review
+                <input name="humanReview" id="field-human-review" type="text" />
+              </label>
+              <label>
+                Readiness %
+                <input name="readiness" id="field-readiness" type="number" min="0" max="100" />
+              </label>
+              <label>
+                Pilot status
+                <input name="pilotStatus" id="field-pilot-status" type="text" />
+              </label>
+              <label class="span-2">
+                Business problem
+                <textarea name="businessProblem" id="field-business-problem" rows="3"></textarea>
+              </label>
+              <label class="span-2">
+                First agent
+                <textarea name="firstAgent" id="field-first-agent" rows="3"></textarea>
+              </label>
+              <label class="span-2">
+                Success metric
+                <textarea name="successMetric" id="field-success-metric" rows="3"></textarea>
+              </label>
+              <div class="form-actions span-2">
+                <button class="primary-button" type="submit">Apply changes</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Platform layers</div>
+                <h2>Six modules that activate during the deployment</h2>
+              </div>
+            </div>
+            <div class="layer-grid" id="layer-grid"></div>
+          </article>
+        </section>
+
+        <section class="view" id="context">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Context graph</div>
+                <h2>What PRAXIS knows about this deployment</h2>
+              </div>
+              <span class="status-pill green" id="context-health">Graph ready</span>
+            </div>
+            <div class="context-lanes" id="context-graph"></div>
+          </article>
+
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Graph summary</div>
+                  <h2>From messy notes to agent-ready context</h2>
+                </div>
+              </div>
+              <div class="context-summary" id="context-summary"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Readiness checklist</div>
+                  <h2>What blocks production deployment?</h2>
+                </div>
+              </div>
+              <div class="context-readiness" id="context-readiness"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="connectors">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Connectors & data sources</div>
+                <h2>Which enterprise systems can the agent actually read or write?</h2>
+              </div>
+              <div class="panel-actions">
+                <button class="ghost-button small" id="add-connector">Add connector</button>
+                <span class="status-pill" id="connector-health">Checking connectors</span>
+              </div>
+            </div>
+            <div class="connector-board" id="connector-board"></div>
+          </article>
+
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Ingestion plan</div>
+                  <h2>How PRAXIS prepares client data for agents</h2>
+                </div>
+              </div>
+              <div class="ingestion-flow" id="ingestion-flow"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Risk map</div>
+                  <h2>Data classes, permissions, and blockers</h2>
+                </div>
+              </div>
+              <div class="connector-risk-map" id="connector-risk-map"></div>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Connector editor</div>
+                <h2>Edit access, data class, and readiness</h2>
+              </div>
+            </div>
+            <div class="connector-editor" id="connector-editor"></div>
+          </article>
+        </section>
+
+        <section class="view" id="fabric">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Tool fabric</div>
+                <h2>API readiness matrix for agent actions</h2>
+              </div>
+              <div class="panel-actions">
+                <button class="ghost-button small" id="add-tool">Add tool</button>
+                <span class="status-pill" id="fabric-health">Checking tools</span>
+              </div>
+            </div>
+            <div class="tool-readiness" id="tool-readiness"></div>
+          </article>
+
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Tool editor</div>
+                  <h2>Make APIs agent-ready</h2>
+                </div>
+              </div>
+              <div class="tool-editor" id="tool-editor"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Manifest preview</div>
+                  <h2>MCP-style tool contract</h2>
+                </div>
+              </div>
+              <pre class="manifest-preview" id="tool-manifest"></pre>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="governance">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Governance & audit</div>
+                <h2>Policies, approvals, and traceability before go-live</h2>
+              </div>
+              <div class="panel-actions">
+                <button class="ghost-button small" id="add-policy">Add policy</button>
+                <button class="ghost-button small" id="add-approval">Add approval</button>
+                <span class="status-pill" id="governance-health">Checking</span>
+              </div>
+            </div>
+            <div class="governance-matrix" id="governance-matrix"></div>
+          </article>
+
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Approval gates</div>
+                  <h2>Who signs off before pilot and scale-up?</h2>
+                </div>
+              </div>
+              <div class="approval-board" id="approval-board"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Audit trail</div>
+                  <h2>What PRAXIS records for every agent run</h2>
+                </div>
+              </div>
+              <div class="audit-trail" id="audit-trail"></div>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Governance editor</div>
+                <h2>Edit policies and approvals</h2>
+              </div>
+            </div>
+            <div class="governance-editor" id="governance-editor"></div>
+          </article>
+        </section>
+
+        <section class="view" id="process">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Process map</div>
+                <h2>How AML investigation works today</h2>
+              </div>
+              <div class="panel-actions">
+                <button class="ghost-button small" id="add-step">Add step</button>
+                <span class="status-pill amber">Human-heavy</span>
+              </div>
+            </div>
+            <div class="process-map" id="process-map"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Process editor</div>
+                <h2>Edit the workflow steps</h2>
+              </div>
+            </div>
+            <div class="process-editor" id="process-editor"></div>
+          </article>
+          <div class="two-column">
+            <article class="panel">
+              <div class="eyebrow">Bottleneck</div>
+              <h2>Evidence collection is the slow part.</h2>
+              <p>
+                The analyst is not spending 45 minutes thinking. Most of the time goes into
+                opening systems, copying facts, checking policies, and building a case summary.
+              </p>
+            </article>
+            <article class="panel">
+              <div class="eyebrow">PRAXIS opportunity</div>
+              <h2>Automate the preparation, not the final judgment.</h2>
+              <p>
+                The agent gathers evidence and drafts a recommendation. A human analyst still
+                approves suspicious cases and owns the regulated decision.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="opportunities">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Opportunity scoring</div>
+                <h2>Where should the FDE deploy first?</h2>
+              </div>
+              <button class="ghost-button small" id="rescore">Re-score</button>
+            </div>
+            <div class="opportunity-table" id="opportunity-table"></div>
+          </article>
+          <article class="panel selected-opportunity" id="selected-opportunity"></article>
+        </section>
+
+        <section class="view" id="value">
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Value model</div>
+                  <h2>Translate the pilot into dollars, hours, and payback.</h2>
+                </div>
+                <div class="panel-actions">
+                  <button class="ghost-button small" id="apply-value-kpi">Apply to workspace KPI</button>
+                  <span class="status-pill green" id="value-model-health">Model ready</span>
+                </div>
+              </div>
+              <div class="value-summary" id="value-summary"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Assumptions</div>
+                  <h2>Edit the business case inputs</h2>
+                </div>
+              </div>
+              <form class="value-form" id="value-form">
+                <label>
+                  Cases per month
+                  <input name="casesPerMonth" type="number" min="0" />
+                </label>
+                <label>
+                  Before minutes / case
+                  <input name="beforeMinutes" type="number" min="0" />
+                </label>
+                <label>
+                  After minutes / case
+                  <input name="afterMinutes" type="number" min="0" />
+                </label>
+                <label>
+                  Loaded cost / hour ($)
+                  <input name="loadedCostPerHour" type="number" min="0" />
+                </label>
+                <label>
+                  Adoption %
+                  <input name="adoptionPercent" type="number" min="0" max="100" />
+                </label>
+                <label>
+                  Error reduction %
+                  <input name="errorReductionPercent" type="number" min="0" max="100" />
+                </label>
+                <label>
+                  Cost per error ($)
+                  <input name="costPerError" type="number" min="0" />
+                </label>
+                <label>
+                  Annual platform cost ($)
+                  <input name="annualPlatformCost" type="number" min="0" />
+                </label>
+                <label class="span-2">
+                  Executive value narrative
+                  <textarea name="valueNarrative" rows="4"></textarea>
+                </label>
+                <div class="form-actions span-2">
+                  <button class="primary-button" type="submit">Update value model</button>
+                </div>
+              </form>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Scenario view</div>
+                <h2>Conservative, base, and upside cases</h2>
+              </div>
+            </div>
+            <div class="scenario-grid" id="value-scenarios"></div>
+          </article>
+        </section>
+
+        <section class="view" id="builder">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Agent builder</div>
+                <h2 id="workflow-title">AML Alert Briefing Agent workflow</h2>
+              </div>
+              <span class="status-pill green">Human-in-loop</span>
+            </div>
+            <div class="workflow-canvas" id="workflow-canvas"></div>
+          </article>
+          <article class="panel">
+            <div class="eyebrow">Tool fabric</div>
+            <h2>Agent-ready tools</h2>
+            <div class="tool-grid" id="tool-grid"></div>
+          </article>
+        </section>
+
+        <section class="view" id="pilot">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Pilot run console</div>
+                <h2>Watch one client case move through the whole PRAXIS stack</h2>
+              </div>
+              <div class="panel-actions">
+                <button class="ghost-button small" id="refresh-pilot-run">Refresh trace</button>
+                <button class="ghost-button small" id="save-pilot-run">Save run</button>
+                <span class="status-pill" id="pilot-health">Checking</span>
+              </div>
+            </div>
+            <div class="pilot-summary" id="pilot-summary"></div>
+            <div class="pilot-trace" id="pilot-trace"></div>
+          </article>
+
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Evidence packet</div>
+                  <h2>What the agent collected before answering</h2>
+                </div>
+              </div>
+              <div class="evidence-packet" id="evidence-packet"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Decision and audit</div>
+                  <h2>What happens before anything touches production</h2>
+                </div>
+              </div>
+              <div class="decision-audit" id="decision-audit"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="evals">
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Eval suite</div>
+                  <h2>Regression gate before production</h2>
+                </div>
+                <div class="panel-actions">
+                  <button class="ghost-button small" id="add-eval-case">Add case</button>
+                  <span class="status-pill" id="eval-status">Not run</span>
+                </div>
+              </div>
+              <div class="eval-list" id="eval-list"></div>
+            </article>
+            <article class="panel">
+              <div class="eyebrow">Run summary</div>
+              <h2 id="eval-summary-title">Waiting for test run</h2>
+              <p id="eval-summary-copy">
+                Press "Run evals" to simulate the FDE testing the agent against historic AML cases.
+              </p>
+              <div class="score-ring" id="score-ring">
+                <span>--</span>
+              </div>
+            </article>
+          </div>
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Eval case editor</div>
+                <h2>Define what “good enough for pilot” means</h2>
+              </div>
+            </div>
+            <div class="eval-editor" id="eval-editor"></div>
+          </article>
+        </section>
+
+        <section class="view" id="deployment">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Deployment plan</div>
+                <h2>30-day pilot rollout from sandbox to production</h2>
+              </div>
+              <div class="panel-actions">
+                <button class="ghost-button small" id="add-milestone">Add milestone</button>
+                <button class="ghost-button small" id="add-blocker">Add blocker</button>
+                <button class="ghost-button small" id="add-checklist-item">Add checklist</button>
+                <span class="status-pill" id="deployment-health">Draft</span>
+              </div>
+            </div>
+            <div class="deployment-timeline" id="deployment-timeline"></div>
+          </article>
+
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Rollout checklist</div>
+                  <h2>What must be true before scale-up?</h2>
+                </div>
+              </div>
+              <div class="rollout-checklist" id="rollout-checklist"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <div class="eyebrow">Blockers</div>
+                  <h2>Open risks and owner accountability</h2>
+                </div>
+              </div>
+              <div class="blocker-board" id="blocker-board"></div>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Deployment editor</div>
+                <h2>Edit rollout plan, blockers, and checklist</h2>
+              </div>
+            </div>
+            <div class="deployment-editor" id="deployment-editor"></div>
+          </article>
+        </section>
+
+        <section class="view" id="readout">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Executive readout</div>
+                <h2>Board-ready summary generated from the deployment workspace</h2>
+              </div>
+              <button class="primary-button small" id="generate-readout">Generate readout</button>
+            </div>
+            <div class="readout" id="readout-content"></div>
+          </article>
+        </section>
+
+        <section class="view" id="playbooks">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Playbook library</div>
+                <h2>Every successful deployment becomes reusable IP.</h2>
+              </div>
+              <div class="panel-actions">
+                <button class="primary-button small" id="save-playbook">Save current as playbook</button>
+                <span class="status-pill green" id="playbook-count">0 templates</span>
+              </div>
+            </div>
+            <div class="playbook-toolbar">
+              <label>
+                Search playbooks
+                <input id="playbook-search" type="search" placeholder="Search by workflow, industry, client, module..." />
+              </label>
+              <div class="playbook-stats" id="playbook-stats"></div>
+            </div>
+            <div class="playbook-grid" id="playbook-grid"></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
