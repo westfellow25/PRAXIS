@@ -63,6 +63,14 @@ See `DATABASE_SCHEMA.md` for the current schema.
 
 `POST /api/intake/workspace` is the first backend intake engine. It takes messy client notes and returns a structured workspace patch: best template, KPI timings, human-review target, source systems, connector patches, success metric, and first-agent summary. Today it uses a deterministic extractor shaped around the future LLM contract.
 
+## Roadmap checklist
+
+Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
+
+- Green: done enough for MVP.
+- Orange: partially done or next layer.
+- Red: not started or critical for the next product phase.
+
 ## What works in this version
 
 - Edit the client brief and KPI metrics.

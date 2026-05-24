@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PRAXIS · Remaining Product Checklist</title>
+    <style>
+      :root {
+        --ink: #14213d;
+        --muted: #657084;
+        --paper: #f8f5ec;
+        --panel: #fffdf7;
+        --line: #d9ded7;
+        --green: #257a4f;
+        --green-soft: #e2f0e8;
+        --orange: #b76e00;
+        --orange-soft: #f7e3bd;
+        --red: #b13f35;
+        --red-soft: #f4dedb;
+        --blue: #2f66b3;
+        --blue-soft: #e2ecfa;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        letter-spacing: 0;
+      }
+
+      main {
+        width: min(1380px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 34px 0 54px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+        gap: 22px;
+        align-items: end;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 24px;
+      }
+
+      .eyebrow {
+        color: var(--orange);
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 8px 0 10px;
+        font-size: clamp(34px, 5vw, 68px);
+        line-height: 0.94;
+      }
+
+      .lead {
+        max-width: 860px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.55;
+      }
+
+      .legend {
+        display: grid;
+        gap: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 16px;
+      }
+
+      .legend-row {
+        display: grid;
+        grid-template-columns: 92px minmax(0, 1fr);
+        gap: 10px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin: 22px 0;
+      }
+
+      .stat {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 16px;
+      }
+
+      .stat span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 850;
+        text-transform: uppercase;
+      }
+
+      .stat strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 30px;
+      }
+
+      .section {
+        margin-top: 26px;
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: end;
+        margin-bottom: 12px;
+      }
+
+      h2 {
+        margin: 4px 0 0;
+        font-size: 24px;
+      }
+
+      .table {
+        display: grid;
+        gap: 8px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 120px minmax(190px, 0.9fr) 120px minmax(240px, 1.2fr) minmax(240px, 1.25fr) 120px;
+        gap: 10px;
+        align-items: start;
+        border: 1px solid var(--line);
+        border-left-width: 6px;
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 13px;
+      }
+
+      .row.header {
+        border-left-width: 1px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .row.green {
+        border-left-color: var(--green);
+      }
+
+      .row.orange {
+        border-left-color: var(--orange);
+      }
+
+      .row.red {
+        border-left-color: var(--red);
+      }
+
+      .badge {
+        display: inline-flex;
+        width: fit-content;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+
+      .badge.green {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+
+      .badge.orange {
+        background: var(--orange-soft);
+        color: var(--orange);
+      }
+
+      .badge.red {
+        background: var(--red-soft);
+        color: var(--red);
+      }
+
+      .priority {
+        display: inline-grid;
+        width: 42px;
+        height: 34px;
+        place-items: center;
+        border-radius: 8px;
+        background: var(--blue-soft);
+        color: var(--blue);
+        font-weight: 900;
+      }
+
+      .row strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .row p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .next {
+        background: #fffaf0;
+      }
+
+      @media (max-width: 1080px) {
+        .hero,
+        .stats {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .row {
+          grid-template-columns: 110px minmax(0, 1fr) 100px;
+        }
+
+        .row > :nth-child(4),
+        .row > :nth-child(5) {
+          grid-column: 1 / -1;
+        }
+      }
+
+      @media (max-width: 720px) {
+        main {
+          width: min(100% - 28px, 1380px);
+        }
+
+        .hero,
+        .stats,
+        .row {
+          grid-template-columns: 1fr;
+        }
+
+        .row.header {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div>
+          <div class="eyebrow">PRAXIS product roadmap</div>
+          <h1>Что осталось сделать</h1>
+          <p class="lead">
+            Это рабочий чеклист после текущего состояния MVP. Сейчас у нас есть local full-stack prototype:
+            frontend, backend, JSON database, AI Intake endpoint, Eval Runner, Pilot Runs и Knowledge Base.
+            Дальше нужно превращать это в enterprise-grade FDE Operating System.
+          </p>
+        </div>
+        <aside class="legend">
+          <div class="legend-row"><span class="badge green">Зелёный</span><span>Уже сделано достаточно для MVP.</span></div>
+          <div class="legend-row"><span class="badge orange">Оранжевый</span><span>Частично готово, нужно довести до production.</span></div>
+          <div class="legend-row"><span class="badge red">Красный</span><span>Не начато или критически важно для следующего этапа.</span></div>
+        </aside>
+      </section>
+
+      <section class="stats">
+        <article class="stat"><span>Готово</span><strong>8</strong></article>
+        <article class="stat"><span>Частично</span><strong>10</strong></article>
+        <article class="stat"><span>Не начато</span><strong>11</strong></article>
+        <article class="stat"><span>Следующий фокус</span><strong>P0</strong></article>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <div class="eyebrow">Foundation</div>
+            <h2>База продукта</h2>
+          </div>
+        </div>
+        <div class="table">
+          <div class="row header">
+            <span>Слой</span><span>Задача</span><span>Статус</span><span>Что есть сейчас</span><span>Что осталось</span><span>Priority</span>
+          </div>
+          <div class="row green">
+            <span>Core</span><strong>Local full-stack MVP</strong><span class="badge green">Готово</span>
+            <p>Frontend, Node backend, JSON database, API, local server.</p><p>Позже заменить JSON DB на Postgres.</p><span class="priority">P0</span>
+          </div>
+          <div class="row green">
+            <span>Git</span><strong>Repository baseline</strong><span class="badge green">Готово</span>
+            <p>Git repo создан, commits есть.</p><p>Подключить GitHub remote, если будем пушить наружу.</p><span class="priority">P0</span>
+          </div>
+          <div class="row orange">
+            <span>Persistence</span><strong>Database layer</strong><span class="badge orange">Частично</span>
+            <p>Есть `data/praxis-db.json` и schema doc.</p><p>Сделать Postgres schema, migrations, IDs, relations, indexes.</p><span class="priority">P0</span>
+          </div>
+          <div class="row red">
+            <span>Auth</span><strong>Accounts and workspace permissions</strong><span class="badge red">Не начато</span>
+            <p>Пока нет пользователей, организаций, ролей.</p><p>Добавить orgs, users, sessions, workspace roles.</p><span class="priority">P0</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <div class="eyebrow">AI Deployment OS</div>
+            <h2>Главные продуктовые слои</h2>
+          </div>
+        </div>
+        <div class="table">
+          <div class="row header">
+            <span>Слой</span><span>Задача</span><span>Статус</span><span>Что есть сейчас</span><span>Что осталось</span><span>Priority</span>
+          </div>
+          <div class="row orange">
+            <span>Intake</span><strong>Real LLM workspace generation</strong><span class="badge orange">Частично</span>
+            <p>`/api/intake/workspace` строит structured patch deterministic extractor.</p><p>Подключить OpenAI/LLM provider, JSON schema validation, retry/repair.</p><span class="priority">P0</span>
+          </div>
+          <div class="row green">
+            <span>Knowledge</span><strong>Document ingestion</strong><span class="badge green">Готово</span>
+            <p>Upload/paste `.txt`, `.md`, `.json`; chunks, keywords, systems, risk signals.</p><p>Добавить PDF/DOCX extraction позже.</p><span class="priority">P1</span>
+          </div>
+          <div class="row orange next">
+            <span>Retrieval</span><strong>Context retrieval tool</strong><span class="badge orange">Следующее</span>
+            <p>Документы уже chunked и searchable.</p><p>Сделать `/api/retrieval/query` и подключить к Pilot Console / Agent Builder.</p><span class="priority">P0</span>
+          </div>
+          <div class="row orange">
+            <span>Context Graph</span><strong>Persistent graph memory</strong><span class="badge orange">Частично</span>
+            <p>Graph строится в UI из process/connectors/docs/tools.</p><p>Сохранять graph nodes/edges в DB, добавить graph search и lineage.</p><span class="priority">P1</span>
+          </div>
+          <div class="row orange">
+            <span>Connectors</span><strong>Real source connectors</strong><span class="badge orange">Частично</span>
+            <p>Есть manual connector model и local document connector.</p><p>Добавить GitHub, Slack/Drive/Confluence, Jira/ServiceNow через OAuth/API.</p><span class="priority">P1</span>
+          </div>
+          <div class="row orange">
+            <span>Tool Fabric</span><strong>OpenAPI to agent-ready tools</strong><span class="badge orange">Частично</span>
+            <p>Tool inventory, auth, risk, MCP-style manifest.</p><p>Импорт OpenAPI specs, generate MCP server, sandbox tool calls.</p><span class="priority">P0</span>
+          </div>
+          <div class="row orange">
+            <span>Evals</span><strong>Real eval runner</strong><span class="badge orange">Частично</span>
+            <p>`/api/evals/run` есть, но deterministic simulation.</p><p>Golden datasets, retrieval accuracy, recommendation match, hallucination checks.</p><span class="priority">P0</span>
+          </div>
+          <div class="row orange">
+            <span>Pilot</span><strong>Run trace storage</strong><span class="badge orange">Частично</span>
+            <p>Pilot runs сохраняются в backend.</p><p>Сделать реальные trace events, latency, cost, model/tool calls, evidence links.</p><span class="priority">P1</span>
+          </div>
+          <div class="row red">
+            <span>Runtime</span><strong>Actual agent execution</strong><span class="badge red">Не начато</span>
+            <p>Сейчас Pilot Console симулирует выполнение.</p><p>Добавить agent runner, tool execution, approvals, retries, state machine.</p><span class="priority">P0</span>
+          </div>
+          <div class="row orange">
+            <span>Governance</span><strong>Policy enforcement</strong><span class="badge orange">Частично</span>
+            <p>Policies, approvals, audit requirements есть в UI.</p><p>OPA-like rules, runtime enforcement, data masking, secrets vault.</p><span class="priority">P0</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <div class="eyebrow">Enterprise product</div>
+            <h2>Что нужно для настоящего enterprise</h2>
+          </div>
+        </div>
+        <div class="table">
+          <div class="row header">
+            <span>Слой</span><span>Задача</span><span>Статус</span><span>Что есть сейчас</span><span>Что осталось</span><span>Priority</span>
+          </div>
+          <div class="row red">
+            <span>Security</span><strong>SSO / SCIM / RBAC</strong><span class="badge red">Не начато</span>
+            <p>Пока локальный single-user app.</p><p>Enterprise identity, group sync, RBAC/ABAC, audit export.</p><span class="priority">P1</span>
+          </div>
+          <div class="row red">
+            <span>Infra</span><strong>Hosted deployment</strong><span class="badge red">Не начато</span>
+            <p>Сейчас локальный server на `localhost:4173`.</p><p>Deploy на cloud, env config, backups, observability, logs.</p><span class="priority">P1</span>
+          </div>
+          <div class="row red">
+            <span>Collab</span><strong>Multi-user workspace</strong><span class="badge red">Не начато</span>
+            <p>Нет comments, mentions, assignments.</p><p>Tasks, owners, notifications, decision log, client/FDE/executive views.</p><span class="priority">P2</span>
+          </div>
+          <div class="row red">
+            <span>Files</span><strong>PDF/DOCX ingestion</strong><span class="badge red">Не начато</span>
+            <p>Сейчас `.txt`, `.md`, `.json`.</p><p>PDF parser, DOCX parser, tables extraction, OCR later.</p><span class="priority">P1</span>
+          </div>
+          <div class="row red">
+            <span>Metrics</span><strong>ROI telemetry</strong><span class="badge red">Не начато</span>
+            <p>Value Model считается вручную.</p><p>Actual before/after measurements, adoption, cost per run, override rate.</p><span class="priority">P1</span>
+          </div>
+          <div class="row orange">
+            <span>Playbooks</span><strong>Playbook marketplace</strong><span class="badge orange">Частично</span>
+            <p>Local save/search/clone playbooks есть.</p><p>Shared library, versioning, industry templates, marketplace mechanics.</p><span class="priority">P2</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <div class="eyebrow">Next 7 days</div>
+            <h2>Самый правильный порядок дальше</h2>
+          </div>
+        </div>
+        <div class="table">
+          <div class="row header">
+            <span>День</span><span>Задача</span><span>Статус</span><span>Почему важно</span><span>Definition of done</span><span>Priority</span>
+          </div>
+          <div class="row orange next">
+            <span>Day 1</span><strong>Retrieval query API</strong><span class="badge orange">Следующее</span>
+            <p>Документы уже есть, нужен настоящий context retrieval.</p><p>`POST /api/retrieval/query` возвращает top chunks + citations.</p><span class="priority">P0</span>
+          </div>
+          <div class="row red">
+            <span>Day 2</span><strong>Use retrieval in Pilot Console</strong><span class="badge red">Не начато</span>
+            <p>Pilot должен опираться на документы, а не только на симуляцию.</p><p>Evidence packet показывает реальные chunks/citations.</p><span class="priority">P0</span>
+          </div>
+          <div class="row red">
+            <span>Day 3</span><strong>LLM provider adapter</strong><span class="badge red">Не начато</span>
+            <p>Нужно заменить deterministic intake на real structured generation.</p><p>Adapter + JSON schema + `.env` config.</p><span class="priority">P0</span>
+          </div>
+          <div class="row red">
+            <span>Day 4</span><strong>OpenAPI import</strong><span class="badge red">Не начато</span>
+            <p>FDE-продукт обязан быстро превращать API docs в tools.</p><p>Paste/upload OpenAPI -> Tool Fabric rows.</p><span class="priority">P0</span>
+          </div>
+          <div class="row red">
+            <span>Day 5</span><strong>Postgres-ready schema</strong><span class="badge red">Не начато</span>
+            <p>JSON DB хороша для MVP, но не для продукта.</p><p>SQL schema/migrations draft готов.</p><span class="priority">P1</span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
