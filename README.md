@@ -50,15 +50,19 @@ The backend lives in `server.js` and exposes:
 - `GET /api/runs`
 - `POST /api/runs`
 - `POST /api/intake`
+- `POST /api/intake/workspace`
+- `POST /api/evals/run`
 
 The local database is `data/praxis-db.json`.
 
 See `DATABASE_SCHEMA.md` for the current schema.
 
+`POST /api/intake/workspace` is the first backend intake engine. It takes messy client notes and returns a structured workspace patch: best template, KPI timings, human-review target, source systems, connector patches, success metric, and first-agent summary. Today it uses a deterministic extractor shaped around the future LLM contract.
+
 ## What works in this version
 
 - Edit the client brief and KPI metrics.
-- Generate a workspace from a raw process description.
+- Generate a workspace from a raw process description through the backend intake engine, with browser fallback.
 - Use four demo intake presets: banking AML, insurance claims, legal review, and SaaS support.
 - View a generated Context Graph with people, systems, agent tools, controls, and readiness blockers.
 - Manage connector readiness across source systems, data classes, access modes, refresh cadence, and blockers.

@@ -103,6 +103,36 @@ Server-side audit events for workspace saves, playbook saves, and run records.
 }
 ```
 
+## intake workspace response
+
+`POST /api/intake/workspace` does not write a full workspace by itself. It returns a patch that the frontend applies over the matching playbook template.
+
+```json
+{
+  "ok": true,
+  "templateKey": "banking",
+  "analysis": {
+    "industry": "Banking",
+    "workflowName": "AML Alert Briefing",
+    "confidence": 0.78,
+    "extractedSystems": ["ServiceNow", "KYC database", "transaction warehouse"],
+    "extractedTimes": {
+      "beforeTime": "45m",
+      "afterTime": "10m"
+    },
+    "extractedHumanReview": "20%",
+    "mode": "deterministic-extractor"
+  },
+  "projectPatch": {
+    "clientName": "Northstar Bank",
+    "workflowName": "AML Alert Briefing",
+    "beforeTime": "45m",
+    "afterTime": "10m",
+    "connectors": []
+  }
+}
+```
+
 ## Future Postgres tables
 
 When we graduate from JSON to Postgres, this maps cleanly into:

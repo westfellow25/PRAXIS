@@ -93,7 +93,7 @@
 | [x] | Visual Agent Builder | Trigger -> Context -> Tools -> Reasoning -> Human Review -> Action -> Logging | Готово | Есть Agent Builder |
 | [x] | Human-in-loop design | Человек утверждает risky cases | Готово | Отражено в workflow/governance |
 | [x] | Pilot Run Console | Один кейс проходит через весь stack | Готово | Есть trace, evidence, decision, audit |
-| [ ] | Discovery Agent | Помогает FDE понять компанию | Не начато | Пока intake deterministic |
+| [ ] | Discovery Agent | Помогает FDE понять компанию | Частично | Backend intake engine уже строит workspace patch, но пока без настоящего LLM |
 | [ ] | Process Analyst Agent | Автоматически строит process map | Не начато | Нужен LLM |
 | [ ] | Data Readiness Agent | Анализирует качество данных | Не начато | Нужны connectors + evals |
 | [ ] | API Readiness Agent | Проверяет API пригодность | Не начато | Нужен OpenAPI/API testing |
@@ -186,7 +186,7 @@
 | P0 | [ ] | Перенести проект в нормальный repo | Нужна база для разработки |
 | P0 | [x] | Добавить backend | Локальный Node backend готов без внешних зависимостей |
 | P0 | [x] | Добавить database schema | JSON schema готова в `DATABASE_SCHEMA.md`; локальная БД `data/praxis-db.json` |
-| P0 | [ ] | Подключить реальный LLM intake | Автоматически строить workspace из raw notes |
+| P0 | [ ] | Подключить реальный LLM intake | Частично: backend endpoint `/api/intake/workspace` готов, но extractor пока deterministic без LLM API |
 | P1 | [x] | Реальный run trace storage | Pilot Console сохраняет runs в локальный backend через `POST /api/runs` |
 | P1 | [ ] | Реальный eval runner | Проверять агента на datasets |
 | P1 | [ ] | OpenAPI/MCP import | Быстро превращать API в tools |

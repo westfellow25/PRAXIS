@@ -745,10 +745,10 @@ function normalizeProject(project) {
   merged.agentWorkflow = Array.isArray(project?.agentWorkflow) && project.agentWorkflow.length ? project.agentWorkflow : defaults.agentWorkflow;
   merged.tools = Array.isArray(project?.tools) && project.tools.length ? project.tools : defaults.tools;
   merged.evalCases = Array.isArray(project?.evalCases) && project.evalCases.length ? project.evalCases : defaults.evalCases;
-  merged.valueModel = project?.valueModel || defaults.valueModel || createValueModel(merged);
-  merged.connectors = project?.connectors || defaults.connectors || createConnectorPlan(merged);
-  merged.governance = project?.governance || defaults.governance || createGovernancePlan(merged);
-  merged.deployment = project?.deployment || defaults.deployment || createDeploymentPlan(merged);
+  merged.valueModel = project?.valueModel || createValueModel(merged);
+  merged.connectors = project?.connectors || createConnectorPlan(merged);
+  merged.governance = project?.governance || createGovernancePlan(merged);
+  merged.deployment = project?.deployment || createDeploymentPlan(merged);
   merged.processSteps = merged.processSteps.map((step) => ({
     title: step.title || "Untitled step",
     owner: step.owner || "Owner",
@@ -1341,16 +1341,29 @@ function pickIntakeTemplate(text) {
   return best;
 }
 
-function generateWorkspaceFromIntake() {
+async function generateWorkspaceFromIntake() {
   const textarea = document.querySelector("#intake-text");
   const text = textarea.value.trim() || intakePresets.banking.sampleText;
   textarea.value = text;
 
-  const template = pickIntakeTemplate(text);
-  const generatedProject = normalizeProject(clone(template.project));
+  let backendIntake = null;
+  try {
+    backendIntake = await apiRequest("/intake/workspace", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    });
+  } catch (error) {
+    console.info("Backend intake unavailable; using browser fallback", error);
+  }
+
+  const template = intakePresets[backendIntake?.templateKey] || pickIntakeTemplate(text);
+  const generatedProject = normalizeProject({
+    ...clone(template.project),
+    ...(backendIntake?.projectPatch || {}),
+  });
   generatedProject.intakeText = text;
 
-  if (!text.toLowerCase().includes(generatedProject.clientName.toLowerCase())) {
+  if (!backendIntake && !text.toLowerCase().includes(generatedProject.clientName.toLowerCase())) {
     generatedProject.businessProblem = `${generatedProject.businessProblem} Intake note: ${text.slice(0, 220)}${text.length > 220 ? "..." : ""}`;
   }
 
@@ -1362,9 +1375,9 @@ function generateWorkspaceFromIntake() {
     test.actual = "";
   });
 
-  saveProject(`Generated: ${template.label}`);
+  saveProject(backendIntake ? `Backend intake: ${template.label}` : `Generated: ${template.label}`);
   renderAll();
-  renderIntakePreview(template, text);
+  renderIntakePreview(template, text, backendIntake?.analysis);
   switchView("context");
 }
 
@@ -1377,7 +1390,7 @@ function renderIntake() {
   renderIntakePreview(pickIntakeTemplate(intakeText), intakeText);
 }
 
-function renderIntakePreview(template, text) {
+function renderIntakePreview(template, text, analysis = null) {
   const previewProject = normalizeProject(clone(template.project));
   const firstOpp = previewProject.opportunities[0];
   const bottleneck =
@@ -1404,6 +1417,14 @@ function renderIntakePreview(template, text) {
         <strong>Generated assets</strong>
         ${previewProject.processSteps.length} process steps, ${previewProject.agentWorkflow.length} agent steps, ${previewProject.tools.length} tools, ${previewProject.opportunities.length} opportunities.
       </div>
+      ${
+        analysis
+          ? `<div class="intake-preview-card">
+              <strong>Backend extraction</strong>
+              ${escapeHtml(analysis.mode)}; ${analysis.extractedSystems.length} systems; ${analysis.extractedTimes.beforeTime || "?"} to ${analysis.extractedTimes.afterTime || "?"}.
+            </div>`
+          : ""
+      }
     </div>
   `;
 }

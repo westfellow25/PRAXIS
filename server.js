@@ -100,9 +100,10 @@ function sendError(res, error) {
 
 function buildServerIntake(text = "") {
   const normalized = text.toLowerCase();
-  const isInsurance = ["claim", "insurance", "adjuster", "damage"].some((word) => normalized.includes(word));
-  const isLegal = ["contract", "legal", "counsel", "clause"].some((word) => normalized.includes(word));
-  const isSupport = ["support", "ticket", "customer", "sla"].some((word) => normalized.includes(word));
+  const templateKey = detectTemplateKey(text);
+  const isInsurance = templateKey === "insurance";
+  const isLegal = templateKey === "legal";
+  const isSupport = templateKey === "support";
   const industry = isInsurance ? "Insurance" : isLegal ? "Legal" : isSupport ? "SaaS" : "Banking";
   const workflowName = isInsurance
     ? "Claims Triage"
@@ -113,6 +114,7 @@ function buildServerIntake(text = "") {
         : "AML Alert Briefing";
 
   return {
+    templateKey,
     industry,
     workflowName,
     confidence: text.trim() ? 0.78 : 0.35,
@@ -123,6 +125,156 @@ function buildServerIntake(text = "") {
     },
     suggestedNextStep:
       "Create or update the workspace, map connectors, identify bottlenecks, then run the pilot trace before evals.",
+  };
+}
+
+function detectTemplateKey(text = "") {
+  const normalized = text.toLowerCase();
+  const scores = {
+    banking: ["aml", "kyc", "bank", "transaction", "sanctions", "compliance", "sar"].filter((word) => normalized.includes(word)).length,
+    insurance: ["claim", "insurance", "policy", "fraud", "adjuster", "damage"].filter((word) => normalized.includes(word)).length,
+    legal: ["contract", "legal", "clause", "nda", "msa", "attorney", "counsel", "lawyer"].filter((word) => normalized.includes(word)).length,
+    support: ["support", "ticket", "customer", "zendesk", "intercom", "bug", "sla"].filter((word) => normalized.includes(word)).length,
+  };
+  return Object.entries(scores).sort((a, b) => b[1] - a[1])[0]?.[0] || "banking";
+}
+
+function extractMinutes(text = "") {
+  const matches = [...text.matchAll(/(\d+(?:\.\d+)?)\s*(?:minutes?|mins?|min|m\b|минут[а-я]*)/gi)]
+    .map((match) => Number(match[1]))
+    .filter((value) => Number.isFinite(value));
+  const before = matches[0] || null;
+  const after = matches.find((value, index) => index > 0 && (!before || value < before)) || matches[1] || null;
+  return {
+    beforeTime: before ? `${before}m` : null,
+    afterTime: after ? `${after}m` : null,
+  };
+}
+
+function extractHumanReview(text = "") {
+  const percentMatches = [...text.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map((match) => `${match[1]}%`);
+  if (/attorney|lawyer|counsel|legal|human approval for every/i.test(text)) return "100%";
+  if (/human|manual|review|approval|escalat/i.test(text) && percentMatches.length) return percentMatches.at(-1);
+  if (/human|manual|review|approval|escalat/i.test(text)) return "20%";
+  return null;
+}
+
+function extractClientName(text = "", templateKey = "banking") {
+  const explicit = text.match(/\b([A-Z][A-Za-z0-9&.'-]*(?:\s+[A-Z][A-Za-z0-9&.'-]*){0,4})\s+(Bank|Mutual|Insurance|Cloud|Health|Pharma|Financial|Group|Corp|Inc|LLC|SaaS)\b/);
+  if (explicit) return `${explicit[1]} ${explicit[2]}`.trim();
+  const defaults = {
+    banking: "Northstar Bank",
+    insurance: "Harbor Mutual",
+    legal: "Aster Cloud",
+    support: "OrbitDesk",
+  };
+  return defaults[templateKey] || "Design Partner";
+}
+
+function extractSystems(text = "") {
+  const knownSystems = [
+    "ServiceNow",
+    "Salesforce",
+    "HubSpot",
+    "Slack",
+    "Teams",
+    "Gmail",
+    "Outlook",
+    "Google Drive",
+    "SharePoint",
+    "Confluence",
+    "Notion",
+    "Jira",
+    "Linear",
+    "Zendesk",
+    "Intercom",
+    "Snowflake",
+    "BigQuery",
+    "Postgres",
+    "GitHub",
+    "GitLab",
+    "KYC database",
+    "transaction warehouse",
+    "sanctions API",
+    "policy docs",
+    "CLM",
+    "Guidewire",
+    "CRM",
+    "telemetry",
+    "billing",
+  ];
+  const lowered = text.toLowerCase();
+  const matches = knownSystems.filter((system) => lowered.includes(system.toLowerCase()));
+  return [...new Set(matches)].slice(0, 10);
+}
+
+function classifySystem(system = "") {
+  const lowered = system.toLowerCase();
+  if (/drive|sharepoint|confluence|notion|docs|clm/.test(lowered)) return "Document store";
+  if (/snowflake|bigquery|postgres|warehouse|telemetry/.test(lowered)) return "Data warehouse";
+  if (/salesforce|hubspot|crm|kyc|billing/.test(lowered)) return "Customer record";
+  if (/servicenow|jira|linear|zendesk|intercom|guidewire/.test(lowered)) return "Workflow app";
+  return "Enterprise system";
+}
+
+function classifyData(system = "") {
+  const lowered = system.toLowerCase();
+  if (/kyc|crm|customer|billing|account/.test(lowered)) return "PII";
+  if (/transaction|contract|policy|claim|warehouse|clm/.test(lowered)) return "Confidential";
+  if (/sanctions|audit|compliance/.test(lowered)) return "Regulated";
+  return "Internal";
+}
+
+function buildConnectorPatch(systems = [], workflowName = "workflow") {
+  return systems.map((system, index) => ({
+    name: system,
+    type: classifySystem(system),
+    owner: classifySystem(system) === "Data warehouse" ? "Data platform" : classifySystem(system) === "Document store" ? "Knowledge owner" : "System owner",
+    access: index < 3 ? "Read-only pending" : "Read-only sandbox",
+    dataClass: classifyData(system),
+    status: index < 2 ? "Needs approval" : "Sandbox ready",
+    refresh: classifySystem(system) === "Data warehouse" ? "Hourly" : "Daily",
+    records: `${classifyData(system)} records`,
+    purpose: `Feeds ${workflowName} with context from ${system}.`,
+  }));
+}
+
+function buildWorkspacePatchFromIntake(text = "") {
+  const intake = buildServerIntake(text);
+  const systems = extractSystems(text);
+  const { beforeTime, afterTime } = extractMinutes(text);
+  const humanReview = extractHumanReview(text);
+  const clientName = extractClientName(text, intake.templateKey);
+  const workflowName = intake.workflowName;
+  const connectors = buildConnectorPatch(systems, workflowName);
+  const firstAgentName = `${workflowName} Agent`;
+  const target = beforeTime && afterTime ? ` from ${beforeTime} to ${afterTime}` : "";
+  const riskNote = intake.detectedSignals.hasRiskLanguage ? " while preserving approval, auditability, and compliance controls" : " while preserving human review for uncertain cases";
+
+  return {
+    templateKey: intake.templateKey,
+    analysis: {
+      ...intake,
+      extractedSystems: systems,
+      extractedTimes: { beforeTime, afterTime },
+      extractedHumanReview: humanReview,
+      mode: process.env.LLM_API_KEY ? "llm-configured-fallback-extractor" : "deterministic-extractor",
+    },
+    projectPatch: {
+      clientName,
+      workflowName,
+      ...(beforeTime ? { beforeTime } : {}),
+      ...(afterTime ? { afterTime } : {}),
+      ...(humanReview ? { humanReview } : {}),
+      readiness: systems.length >= 4 ? 74 : 62,
+      pilotStatus: systems.length >= 3 ? "Discovery complete" : "Needs discovery",
+      businessProblem: text.trim()
+        ? `Client intake says: ${text.slice(0, 280)}${text.length > 280 ? "..." : ""}`
+        : `${clientName} needs to make ${workflowName} faster, safer, and easier to measure.`,
+      firstAgent: `${firstAgentName}: collect context, call approved tools, draft a recommendation, route risky cases to human review, and write an audit trail.`,
+      successMetric: `Reduce ${workflowName}${target}${riskNote}.`,
+      ...(connectors.length ? { connectors } : {}),
+    },
   };
 }
 
@@ -292,6 +444,20 @@ async function handleApi(req, res, url) {
   if (req.method === "POST" && url.pathname === "/api/intake") {
     const body = await readJsonBody(req);
     sendJson(res, 200, { ok: true, intake: buildServerIntake(body.text || "") });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/intake/workspace") {
+    const body = await readJsonBody(req);
+    const result = buildWorkspacePatchFromIntake(body.text || "");
+    const nextDb = appendAudit(db, "intake.workspace.generated", {
+      templateKey: result.templateKey,
+      workflowName: result.projectPatch.workflowName,
+      systems: result.analysis.extractedSystems.length,
+      mode: result.analysis.mode,
+    });
+    await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, ...result });
     return;
   }
 
