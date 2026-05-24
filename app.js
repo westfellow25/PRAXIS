@@ -14,6 +14,9 @@ const state = {
   documents: [],
   playbookSearch: "",
   documentSearch: "",
+  retrieval: { query: "", results: [] },
+  governanceCheck: null,
+  mcpServerCode: "",
   backendOnline: false,
 };
 
@@ -1139,6 +1142,80 @@ function createLocalDocument(name, content, sourceType = "pasted") {
   });
 }
 
+function tokenizeText(text = "") {
+  return [
+    ...new Set(
+      String(text)
+        .toLowerCase()
+        .match(/[a-z][a-z0-9_-]{2,}/g) || [],
+    ),
+  ].filter((token) => !["the", "and", "for", "with", "from", "that", "this", "into", "case", "agent"].includes(token));
+}
+
+function buildRetrievalQuery() {
+  const project = state.project || {};
+  const bottleneck =
+    project.processSteps?.find((step) => step.tags?.some((tag) => tag.toLowerCase() === "bottleneck")) ||
+    project.processSteps?.[0];
+  return [
+    project.workflowName,
+    project.firstAgent,
+    project.businessProblem,
+    bottleneck?.title,
+    bottleneck?.pain,
+    project.connectors?.map((connector) => connector.name).join(" "),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, 900);
+}
+
+function searchLocalDocumentChunks(query, limit = 6) {
+  const terms = tokenizeText(query);
+  if (!terms.length) return [];
+  return state.documents
+    .flatMap((document) =>
+      (document.chunks || []).map((chunk) => {
+        const haystack = `${document.name} ${document.summary} ${document.systems.join(" ")} ${document.keywords.join(" ")} ${chunk.text}`.toLowerCase();
+        const matchedTerms = terms.filter((term) => haystack.includes(term));
+        const score = matchedTerms.length * 3 + (document.signals.hasRiskLanguage ? 1 : 0) + (document.signals.hasPiiLanguage ? 1 : 0);
+        return {
+          score,
+          matchedTerms,
+          citation: {
+            documentId: document.id,
+            documentName: document.name,
+            chunkId: chunk.id,
+            text: chunk.text,
+            keywords: chunk.keywords || [],
+            systems: document.systems || [],
+            signals: document.signals || {},
+            createdAt: document.createdAt,
+          },
+        };
+      }),
+    )
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+async function refreshRetrievalEvidence() {
+  const query = buildRetrievalQuery();
+  try {
+    const response = await apiRequest("/retrieval/query", {
+      method: "POST",
+      body: JSON.stringify({ query, limit: 6 }),
+    });
+    state.retrieval = { query: response.query, results: response.results || [] };
+    state.backendOnline = true;
+  } catch (error) {
+    console.info("Backend retrieval unavailable; using local document search", error);
+    state.retrieval = { query, results: searchLocalDocumentChunks(query, 6) };
+  }
+  renderPilotRunConsole();
+}
+
 function setStorageStatus(text, variant = "") {
   const element = document.querySelector("#storage-status");
   if (!element) return;
@@ -2118,6 +2195,7 @@ async function ingestDocument(name, content, sourceType = "pasted") {
   saveDocumentsLocal();
   renderDocuments();
   renderContextGraph();
+  refreshRetrievalEvidence();
   renderReadout();
 }
 
@@ -2150,6 +2228,7 @@ async function deleteDocument(documentId) {
   }
   renderDocuments();
   renderContextGraph();
+  refreshRetrievalEvidence();
   renderReadout();
 }
 
@@ -2336,6 +2415,8 @@ function renderToolFabric() {
   });
 
   document.querySelector("#tool-manifest").textContent = JSON.stringify(buildToolManifest(averageScore), null, 2);
+  document.querySelector("#mcp-server-preview").textContent =
+    state.mcpServerCode || "// Click Generate server to create an MCP server scaffold from these tools.";
 }
 
 function buildToolManifest(readinessScore) {
@@ -2354,11 +2435,76 @@ function buildToolManifest(readinessScore) {
       readiness: scoreTool(tool),
       guardrails: [
         tool.risk === "High" ? "human_approval_required" : "log_every_call",
-        tool.auth.includes("User") ? "respect_user_permissions" : "service_scope_required",
+        String(tool.auth || "").includes("User") ? "respect_user_permissions" : "service_scope_required",
         "record_inputs_outputs_and_source_context",
       ],
     })),
   };
+}
+
+function generateMcpServerCodeLocal() {
+  const registrations = state.project.tools
+    .map((tool) => {
+      const toolName = (tool.name || tool.code || "tool")
+        .replace(/\([^)]*\)/g, "")
+        .replace(/[^a-zA-Z0-9]+/g, "_")
+        .replace(/^_|_$/g, "")
+        .toLowerCase() || "tool";
+      return `server.tool(
+  "${toolName}",
+  \`${(tool.copy || "Generated from PRAXIS Tool Fabric.").replace(/`/g, "\\`")}\`,
+  { input: z.any().optional() },
+  async ({ input }) => {
+    // TODO: Wire ${tool.name} to the real enterprise API.
+    // Contract: ${tool.code}
+    // Auth: ${tool.auth}
+    // Risk: ${tool.risk}
+    return {
+      content: [{ type: "text", text: JSON.stringify({ ok: false, message: "Tool stub not connected yet", input }, null, 2) }]
+    };
+  }
+);`;
+    })
+    .join("\n\n");
+
+  return `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+const server = new McpServer({
+  name: "${state.project.workflowName} MCP Server",
+  version: "0.1.0"
+});
+
+${registrations}
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+`;
+}
+
+async function generateMcpServer() {
+  const button = document.querySelector("#generate-mcp-server");
+  button.disabled = true;
+  button.textContent = "Generating";
+  try {
+    const response = await apiRequest("/mcp/generate", {
+      method: "POST",
+      body: JSON.stringify({ project: state.project }),
+    });
+    state.mcpServerCode = response.code || "";
+    state.backendOnline = true;
+    setStorageStatus(`MCP server scaffold generated for ${response.toolCount || state.project.tools.length} tools`, "green");
+  } catch (error) {
+    console.info("Backend MCP generator unavailable; using browser generator", error);
+    state.mcpServerCode = generateMcpServerCodeLocal();
+    state.backendOnline = false;
+    setStorageStatus("MCP server scaffold generated locally", "green");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Generate server";
+    renderToolFabric();
+  }
 }
 
 function updateTool(event) {
@@ -2404,8 +2550,78 @@ function deleteTool(index) {
   renderReadout();
 }
 
+function generateToolsFromOpenApiLocal(spec = {}) {
+  const paths = spec.paths && typeof spec.paths === "object" ? spec.paths : {};
+  return Object.entries(paths).flatMap(([path, methods]) =>
+    Object.entries(methods || {})
+      .filter(([method]) => ["get", "post", "put", "patch", "delete"].includes(method.toLowerCase()))
+      .map(([method, operation]) => {
+        const operationId = operation.operationId || `${method}_${path.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "")}`;
+        const parameters = [
+          ...((operation.parameters || []).map((param) => param.name).filter(Boolean)),
+          ...(operation.requestBody ? ["body"] : []),
+        ];
+        const risk = ["post", "put", "patch", "delete"].includes(method.toLowerCase()) ? "High" : "Medium";
+        return {
+          name: operation.summary || operationId,
+          code: `${operationId}(${parameters.join(", ")})`,
+          copy: operation.description || operation.summary || `${method.toUpperCase()} ${path} from imported OpenAPI spec.`,
+          owner: spec.info?.title || "API owner",
+          auth: risk === "High" ? "Service account + approval" : "Read-only service",
+          risk,
+        };
+      }),
+  );
+}
+
+async function importOpenApiTools() {
+  const textarea = document.querySelector("#openapi-input");
+  const raw = textarea.value.trim();
+  if (!raw) {
+    setStorageStatus("Paste OpenAPI JSON first", "amber");
+    return;
+  }
+  try {
+    let toolsFromSpec = [];
+    try {
+      const response = await apiRequest("/openapi/import", {
+        method: "POST",
+        body: JSON.stringify({ spec: raw }),
+      });
+      toolsFromSpec = response.tools || [];
+    } catch (error) {
+      console.info("Backend OpenAPI import unavailable; using browser parser", error);
+      toolsFromSpec = generateToolsFromOpenApiLocal(JSON.parse(raw));
+    }
+    if (!toolsFromSpec.length) {
+      setStorageStatus("No tools found in spec", "amber");
+      return;
+    }
+    state.project.tools = [...state.project.tools, ...toolsFromSpec].map((tool) => ({
+      name: tool.name || "Imported tool",
+      code: tool.code || "importedTool()",
+      copy: tool.copy || "Imported from OpenAPI.",
+      owner: tool.owner || inferToolOwner(tool),
+      auth: tool.auth || inferToolAuth(tool),
+      risk: tool.risk || inferToolRisk(tool),
+    }));
+    textarea.value = "";
+    saveProject(`${toolsFromSpec.length} tools imported`);
+    renderTools();
+    renderToolFabric();
+    renderContextGraph();
+    renderPilotRunConsole();
+    renderDeploymentPlan();
+    renderReadout();
+  } catch (error) {
+    console.warn("Could not import OpenAPI", error);
+    setStorageStatus("OpenAPI import failed", "amber");
+  }
+}
+
 function buildPilotRun() {
   const project = state.project;
+  const retrievalResults = state.retrieval.results.length ? state.retrieval.results : searchLocalDocumentChunks(buildRetrievalQuery(), 4);
   const connectorHealth = getConnectorHealth();
   const toolAverage = Math.round(project.tools.reduce((sum, tool) => sum + scoreTool(tool), 0) / Math.max(1, project.tools.length));
   const governance = getGovernanceHealth();
@@ -2485,6 +2701,7 @@ function buildPilotRun() {
     connectorHealth,
     toolAverage,
     governance,
+    retrievalResults,
     trace,
   };
 }
@@ -2533,6 +2750,17 @@ function renderPilotRunConsole() {
     <article class="evidence-card">
       <strong>Source records</strong>
       <p>${run.readableConnectors.map((connector) => `${connector.name} (${connector.records})`).join("; ") || "No readable connectors yet."}</p>
+    </article>
+    <article class="evidence-card">
+      <strong>Retrieved document evidence</strong>
+      <p>${
+        run.retrievalResults.length
+          ? run.retrievalResults
+              .slice(0, 3)
+              .map((item) => `${item.citation.documentName} / ${item.citation.chunkId}: ${item.citation.text.slice(0, 180)}${item.citation.text.length > 180 ? "..." : ""}`)
+              .join(" ")
+          : "No document citations yet. Add policy docs, API docs, or meeting notes in Knowledge Base."
+      }</p>
     </article>
     <article class="evidence-card">
       <strong>Tool outputs</strong>
@@ -2599,6 +2827,92 @@ function getGovernanceHealth() {
   return { score, pendingApprovals, auditCoverage, ready: score >= 80 && pendingApprovals === 0 };
 }
 
+function runGovernanceChecksLocal(project = state.project) {
+  const connectors = Array.isArray(project.connectors) ? project.connectors : [];
+  const tools = Array.isArray(project.tools) ? project.tools : [];
+  const governance = project.governance || {};
+  const approvals = Array.isArray(governance.approvals) ? governance.approvals : [];
+  const policies = Array.isArray(governance.policies) ? governance.policies : [];
+  const auditEvents = Array.isArray(governance.auditEvents) ? governance.auditEvents : [];
+  const findings = [];
+
+  connectors.forEach((connector) => {
+    if (connector.status === "Blocked" || connector.access === "No access") {
+      findings.push({
+        severity: "High",
+        area: "Connector access",
+        title: `${connector.name} is not accessible`,
+        detail: "Production or pilot runs should not depend on blocked data sources.",
+      });
+    }
+    if (
+      ["PII", "Regulated"].includes(connector.dataClass) &&
+      !String(connector.access || "").toLowerCase().includes("pending") &&
+      !approvals.some((approval) => approval.status === "Approved")
+    ) {
+      findings.push({
+        severity: "Medium",
+        area: "Sensitive data",
+        title: `${connector.name} contains ${connector.dataClass} data`,
+        detail: "Sensitive sources need explicit approval and masking before agent retrieval.",
+      });
+    }
+  });
+
+  tools.forEach((tool) => {
+    if (tool.risk === "High" && !String(tool.auth || "").toLowerCase().includes("approval")) {
+      findings.push({
+        severity: "High",
+        area: "Tool control",
+        title: `${tool.name} is high-risk without approval auth`,
+        detail: "High-risk tools need service account + approval or human-only execution.",
+      });
+    }
+  });
+
+  if (!auditEvents.length || auditEvents.length < 5) {
+    findings.push({
+      severity: "High",
+      area: "Auditability",
+      title: "Audit trail is incomplete",
+      detail: "Every run should capture trigger, context, tools, model output, reviewer, action, and timestamp.",
+    });
+  }
+
+  approvals
+    .filter((approval) => approval.status !== "Approved")
+    .forEach((approval) => {
+      findings.push({
+        severity: approval.status === "Blocked" ? "High" : "Medium",
+        area: "Approval gate",
+        title: `${approval.gate} is ${approval.status}`,
+        detail: approval.notes || "Approval must be resolved before controlled production.",
+      });
+    });
+
+  const requiredPolicies = policies.filter((policy) => ["High", "Critical"].includes(policy.severity));
+  const approvedOrRequired = requiredPolicies.filter((policy) => ["Approved", "Required"].includes(policy.status));
+  const score = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        100 -
+          findings.filter((finding) => finding.severity === "High").length * 18 -
+          findings.filter((finding) => finding.severity === "Medium").length * 8 +
+          (requiredPolicies.length ? (approvedOrRequired.length / requiredPolicies.length) * 10 : 0),
+      ),
+    ),
+  );
+
+  return {
+    score,
+    passed: score >= 80 && !findings.some((finding) => finding.severity === "High"),
+    findings,
+    checkedAt: new Date().toISOString(),
+  };
+}
+
 function renderGovernance() {
   const health = getGovernanceHealth();
   document.querySelector("#governance-health").textContent = `${health.score}% governed`;
@@ -2627,6 +2941,50 @@ function renderGovernance() {
     )
     .join("");
   document.querySelector("#governance-matrix").innerHTML = header + rows;
+
+  const check = state.governanceCheck;
+  const findingsHtml = !check
+    ? `
+      <article class="governance-summary idle">
+        <strong>No governance check run yet</strong>
+        <span>Click Run check to test connectors, sensitive data, high-risk tools, approvals, and audit coverage before the pilot.</span>
+      </article>
+    `
+    : `
+      <article class="governance-summary ${check.passed ? "passed" : "blocked"}">
+        <div>
+          <strong>${check.passed ? "Pilot governance passed" : "Pilot governance blocked"}</strong>
+          <span>${check.findings.length ? `${check.findings.length} finding${check.findings.length === 1 ? "" : "s"} need attention.` : "No blocking findings detected."}</span>
+        </div>
+        <span class="governance-score">${check.score}/100</span>
+      </article>
+      ${
+        check.findings.length
+          ? check.findings
+              .map(
+                (finding) => `
+                  <article class="governance-finding ${escapeHtml(finding.severity.toLowerCase())}">
+                    <span>${escapeHtml(finding.severity)}</span>
+                    <div>
+                      <strong>${escapeHtml(finding.title)}</strong>
+                      <p>${escapeHtml(finding.area)}: ${escapeHtml(finding.detail)}</p>
+                    </div>
+                  </article>
+                `,
+              )
+              .join("")
+          : `
+              <article class="governance-finding low">
+                <span>OK</span>
+                <div>
+                  <strong>Ready for controlled pilot</strong>
+                  <p>PRAXIS can explain what data, tools, approvals, and audit events are involved before a real agent run.</p>
+                </div>
+              </article>
+            `
+      }
+    `;
+  document.querySelector("#governance-findings").innerHTML = findingsHtml;
 
   document.querySelector("#approval-board").innerHTML = state.project.governance.approvals
     .map(
@@ -2801,6 +3159,38 @@ function deleteGovernanceItem(kind, index) {
   renderReadout();
 }
 
+async function runGovernanceCheck() {
+  const button = document.querySelector("#run-governance-check");
+  button.disabled = true;
+  button.textContent = "Checking";
+  try {
+    const response = await apiRequest("/governance/check", {
+      method: "POST",
+      body: JSON.stringify({ project: state.project }),
+    });
+    state.backendOnline = true;
+    state.governanceCheck = {
+      score: response.score,
+      passed: Boolean(response.passed),
+      findings: response.findings || [],
+      checkedAt: response.checkedAt,
+    };
+    setStorageStatus(`Governance ${response.passed ? "passed" : "needs work"}`, response.passed ? "green" : "amber");
+  } catch (error) {
+    console.info("Backend governance check unavailable; using browser checks", error);
+    state.backendOnline = false;
+    state.governanceCheck = runGovernanceChecksLocal(state.project);
+    setStorageStatus("Governance checked locally", state.governanceCheck.passed ? "green" : "amber");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Run check";
+    renderGovernance();
+    renderPilotRunConsole();
+    renderDeploymentPlan();
+    renderReadout();
+  }
+}
+
 function renderEvals() {
   document.querySelector("#eval-list").innerHTML = state.project.evalCases
     .map(
@@ -2858,6 +3248,16 @@ function renderEvals() {
             Last actual result
             <textarea data-eval-field="actual" data-eval-index="${index}">${escapeHtml(test.actual)}</textarea>
           </label>
+          ${
+            Array.isArray(test.retrievalEvidence) && test.retrievalEvidence.length
+              ? `
+                <div class="eval-evidence span-4">
+                  <strong>Retrieved evidence</strong>
+                  <span>${test.retrievalEvidence.map((item) => escapeHtml(`${item.documentName || "Document"} ${item.chunkId || ""}`)).join(" | ")}</span>
+                </div>
+              `
+              : ""
+          }
         </article>
       `,
     )
@@ -2892,13 +3292,15 @@ function renderEvalSummary() {
   const gateScore = Math.round(
     ((resultCounts.pass * 100 + resultCounts.warn * 70) / Math.max(1, state.project.evalCases.length)),
   );
+  const retrievalCovered = state.project.evalCases.filter((test) => Array.isArray(test.retrievalEvidence) && test.retrievalEvidence.length).length;
+  const retrievalCopy = retrievalCovered ? ` Retrieval evidence covered ${retrievalCovered}/${state.project.evalCases.length} cases.` : "";
   const passed = criticalFails === 0 && gateScore >= 80;
   document.querySelector("#eval-status").textContent = passed ? "Ready for pilot" : "Blocked";
   document.querySelector("#eval-status").className = `status-pill ${passed ? "green" : "amber"}`;
   document.querySelector("#eval-summary-title").textContent = passed ? "Pilot gate passed" : "Pilot gate blocked";
   document.querySelector("#eval-summary-copy").textContent = passed
-    ? `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. No critical blockers remain.`
-    : `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Resolve critical or low-score cases before production.`;
+    ? `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. No critical blockers remain.${retrievalCopy}`
+    : `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Resolve critical or low-score cases before production.${retrievalCopy}`;
   document.querySelector("#score-ring span").textContent = String(gateScore);
 }
 
@@ -2910,7 +3312,7 @@ async function runEvals() {
       body: JSON.stringify({ project: state.project }),
     });
     state.project.evalCases = response.evalCases;
-    const { resultCounts, gateScore, passed } = response.summary;
+    const { resultCounts, gateScore, passed, retrievalCoverage } = response.summary;
     saveProject("Backend evals run");
     renderEvals();
     renderContextGraph();
@@ -2921,8 +3323,8 @@ async function runEvals() {
     document.querySelector("#eval-status").className = `status-pill ${passed ? "green" : "amber"}`;
     document.querySelector("#eval-summary-title").textContent = passed ? "Pilot gate passed" : "Pilot gate blocked";
     document.querySelector("#eval-summary-copy").textContent = passed
-      ? `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Backend eval runner found no critical blockers.`
-      : `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Backend eval runner found unresolved blockers.`;
+      ? `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Backend eval runner found no critical blockers. Retrieval coverage: ${retrievalCoverage}%.`
+      : `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Backend eval runner found unresolved blockers. Retrieval coverage: ${retrievalCoverage}%.`;
     document.querySelector("#score-ring span").textContent = String(gateScore);
     switchView("evals");
     return;
@@ -3641,9 +4043,12 @@ document.querySelector("#document-search").addEventListener("input", (event) => 
   renderDocuments();
 });
 document.querySelector("#add-tool").addEventListener("click", addTool);
+document.querySelector("#generate-mcp-server").addEventListener("click", generateMcpServer);
+document.querySelector("#import-openapi").addEventListener("click", importOpenApiTools);
 document.querySelector("#add-policy").addEventListener("click", addPolicy);
 document.querySelector("#add-approval").addEventListener("click", addApproval);
-document.querySelector("#refresh-pilot-run").addEventListener("click", renderPilotRunConsole);
+document.querySelector("#run-governance-check").addEventListener("click", runGovernanceCheck);
+document.querySelector("#refresh-pilot-run").addEventListener("click", refreshRetrievalEvidence);
 document.querySelector("#save-pilot-run").addEventListener("click", savePilotRun);
 document.querySelector("#add-eval-case").addEventListener("click", addEvalCase);
 document.querySelector("#add-milestone").addEventListener("click", addMilestone);

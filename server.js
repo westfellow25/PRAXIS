@@ -1,10 +1,28 @@
 import { createServer } from "node:http";
 import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
 const ROOT = process.cwd();
+
+function loadDotEnv() {
+  const envPath = join(ROOT, ".env");
+  if (!existsSync(envPath)) return;
+  const raw = readFileSync(envPath, "utf8");
+  raw.split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex === -1) return;
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed.slice(separatorIndex + 1).trim().replace(/^["']|["']$/g, "");
+    if (key && process.env[key] === undefined) process.env[key] = value;
+  });
+}
+
+loadDotEnv();
+
 const DATA_DIR = join(ROOT, "data");
 const DB_PATH = join(DATA_DIR, "praxis-db.json");
 const PORT = Number(process.env.PORT || 4173);
@@ -279,6 +297,94 @@ function buildWorkspacePatchFromIntake(text = "") {
   };
 }
 
+function hasLlmConfig() {
+  return Boolean(process.env.LLM_ENDPOINT && process.env.LLM_MODEL && process.env.LLM_API_KEY);
+}
+
+function safeJsonParse(text = "") {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const match = String(text).match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function buildWorkspacePatchFromIntakeWithProvider(text = "") {
+  const fallback = buildWorkspacePatchFromIntake(text);
+  if (!hasLlmConfig()) return fallback;
+
+  const prompt = [
+    "You are the PRAXIS intake engine for a Forward Deployed Engineering Operating System.",
+    "Convert messy client notes into strict JSON.",
+    "Return only JSON with keys: templateKey, analysis, projectPatch.",
+    "analysis must include industry, workflowName, confidence, extractedSystems, extractedTimes, extractedHumanReview, mode.",
+    "projectPatch may include clientName, workflowName, beforeTime, afterTime, humanReview, readiness, pilotStatus, businessProblem, firstAgent, successMetric, connectors.",
+    "Do not invent credentials, private data, or production access.",
+    "",
+    `Client notes:\n${text.slice(0, 8000)}`,
+  ].join("\n");
+
+  try {
+    const response = await fetch(process.env.LLM_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${process.env.LLM_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: process.env.LLM_MODEL,
+        messages: [
+          { role: "system", content: "You generate strict JSON for enterprise AI deployment intake." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`LLM endpoint returned ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const content = payload.choices?.[0]?.message?.content || payload.output_text || "";
+    const parsed = safeJsonParse(content);
+    if (!parsed || !parsed.projectPatch) {
+      throw new Error("LLM response did not include projectPatch JSON");
+    }
+
+    return {
+      templateKey: parsed.templateKey || fallback.templateKey,
+      analysis: {
+        ...fallback.analysis,
+        ...(parsed.analysis || {}),
+        mode: "llm-provider",
+      },
+      projectPatch: {
+        ...fallback.projectPatch,
+        ...parsed.projectPatch,
+        connectors: Array.isArray(parsed.projectPatch.connectors)
+          ? parsed.projectPatch.connectors
+          : fallback.projectPatch.connectors,
+      },
+    };
+  } catch (error) {
+    return {
+      ...fallback,
+      analysis: {
+        ...fallback.analysis,
+        mode: "llm-error-fallback-extractor",
+        llmError: error.message,
+      },
+    };
+  }
+}
+
 function extractKeywords(text = "") {
   const stopwords = new Set([
     "the",
@@ -362,6 +468,47 @@ function createDocumentRecord({ name, content, sourceType = "pasted" }) {
   };
 }
 
+function tokenize(text = "") {
+  return [
+    ...new Set(
+      String(text)
+        .toLowerCase()
+        .match(/[a-z][a-z0-9_-]{2,}/g) || [],
+    ),
+  ].filter((token) => !["the", "and", "for", "with", "from", "that", "this", "into", "case", "agent"].includes(token));
+}
+
+function retrieveDocumentChunks(documents = [], query = "", limit = 6) {
+  const terms = tokenize(query);
+  if (!terms.length) return [];
+  return documents
+    .flatMap((document) =>
+      (document.chunks || []).map((chunk) => {
+        const haystack = `${document.name} ${document.summary} ${(document.systems || []).join(" ")} ${(document.keywords || []).join(" ")} ${chunk.text}`.toLowerCase();
+        const matchedTerms = terms.filter((term) => haystack.includes(term));
+        const exactPhraseBoost = haystack.includes(query.toLowerCase()) ? 4 : 0;
+        const score = matchedTerms.length * 3 + exactPhraseBoost + (document.signals?.hasRiskLanguage ? 1 : 0) + (document.signals?.hasPiiLanguage ? 1 : 0);
+        return {
+          score,
+          matchedTerms,
+          citation: {
+            documentId: document.id,
+            documentName: document.name,
+            chunkId: chunk.id,
+            text: chunk.text,
+            keywords: chunk.keywords || [],
+            systems: document.systems || [],
+            signals: document.signals || {},
+            createdAt: document.createdAt,
+          },
+        };
+      }),
+    )
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
 function scoreServerTool(tool) {
   let score = 25;
   if (tool.name && tool.name.length > 3) score += 15;
@@ -373,7 +520,7 @@ function scoreServerTool(tool) {
   return Math.min(100, score);
 }
 
-function runServerEvalSuite(project = {}) {
+function runServerEvalSuite(project = {}, documents = []) {
   const tools = Array.isArray(project.tools) ? project.tools : [];
   const evalCases = Array.isArray(project.evalCases) ? project.evalCases : [];
   const readiness = Number(project.readiness) || 0;
@@ -383,13 +530,25 @@ function runServerEvalSuite(project = {}) {
   const nextEvalCases = evalCases.map((test, index) => {
     const severity = test.severity || "Medium";
     const severityPenalty = { Low: 0, Medium: 6, High: 12, Critical: 18 }[severity] ?? 6;
-    const score = Math.max(0, Math.min(100, Math.round((readiness + toolAverage) / 2 - severityPenalty + (hasAudit ? 8 : 0))));
+    const retrievalEvidence = retrieveDocumentChunks(
+      documents,
+      `${test.name || ""} ${test.category || ""} ${test.input || ""} ${test.expected || ""}`,
+      3,
+    );
+    const retrievalAdjustment = documents.length ? (retrievalEvidence.length ? 6 : -8) : 0;
+    const score = Math.max(0, Math.min(100, Math.round((readiness + toolAverage) / 2 - severityPenalty + (hasAudit ? 8 : 0) + retrievalAdjustment)));
+    const evidenceNote = documents.length
+      ? retrievalEvidence.length
+        ? ` Retrieval found ${retrievalEvidence.length} supporting chunk${retrievalEvidence.length === 1 ? "" : "s"}.`
+        : " Retrieval found no supporting chunks."
+      : "";
     if (severity === "Critical" && !hasAudit) {
       return {
         ...test,
         id: test.id || `eval-${index + 1}`,
         result: "fail",
-        actual: "Backend gate failed: critical eval requires audit or trace coverage before pilot.",
+        actual: `Backend gate failed: critical eval requires audit or trace coverage before pilot.${evidenceNote}`,
+        retrievalEvidence: retrievalEvidence.map((item) => item.citation),
       };
     }
     if (score >= 74) {
@@ -397,7 +556,8 @@ function runServerEvalSuite(project = {}) {
         ...test,
         id: test.id || `eval-${index + 1}`,
         result: "pass",
-        actual: `Backend gate passed with score ${score}. Evidence, tool readiness, and controls are sufficient for pilot.`,
+        actual: `Backend gate passed with score ${score}. Evidence, tool readiness, and controls are sufficient for pilot.${evidenceNote}`,
+        retrievalEvidence: retrievalEvidence.map((item) => item.citation),
       };
     }
     if (score >= 58) {
@@ -405,14 +565,16 @@ function runServerEvalSuite(project = {}) {
         ...test,
         id: test.id || `eval-${index + 1}`,
         result: "warn",
-        actual: `Backend gate warning with score ${score}. Safe for sandbox, but needs stronger coverage before scale-up.`,
+        actual: `Backend gate warning with score ${score}. Safe for sandbox, but needs stronger coverage before scale-up.${evidenceNote}`,
+        retrievalEvidence: retrievalEvidence.map((item) => item.citation),
       };
     }
     return {
       ...test,
       id: test.id || `eval-${index + 1}`,
       result: "fail",
-      actual: `Backend gate failed with score ${score}. Fix context, tools, or controls before live traffic.`,
+      actual: `Backend gate failed with score ${score}. Fix context, tools, or controls before live traffic.${evidenceNote}`,
+      retrievalEvidence: retrievalEvidence.map((item) => item.citation),
     };
   });
 
@@ -422,6 +584,7 @@ function runServerEvalSuite(project = {}) {
   );
   const criticalFails = nextEvalCases.filter((test) => test.severity === "Critical" && test.result === "fail").length;
   const gateScore = Math.round((resultCounts.pass * 100 + resultCounts.warn * 70) / Math.max(1, nextEvalCases.length));
+  const retrievalCovered = nextEvalCases.filter((test) => Array.isArray(test.retrievalEvidence) && test.retrievalEvidence.length).length;
   return {
     evalCases: nextEvalCases,
     summary: {
@@ -431,8 +594,172 @@ function runServerEvalSuite(project = {}) {
       resultCounts,
       toolAverage,
       hasAudit,
+      retrievalCoverage: Math.round((retrievalCovered / Math.max(1, nextEvalCases.length)) * 100),
+      documentCount: documents.length,
       evaluatedAt: new Date().toISOString(),
     },
+  };
+}
+
+function generateToolsFromOpenApi(spec = {}) {
+  const paths = spec.paths && typeof spec.paths === "object" ? spec.paths : {};
+  return Object.entries(paths).flatMap(([path, methods]) =>
+    Object.entries(methods || {})
+      .filter(([method]) => ["get", "post", "put", "patch", "delete"].includes(method.toLowerCase()))
+      .map(([method, operation]) => {
+        const operationId = operation.operationId || `${method}_${path.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "")}`;
+        const parameters = [
+          ...((operation.parameters || []).map((param) => param.name).filter(Boolean)),
+          ...(operation.requestBody ? ["body"] : []),
+        ];
+        const signature = `${operationId}(${parameters.join(", ")})`;
+        const risk = ["post", "put", "patch", "delete"].includes(method.toLowerCase()) ? "High" : "Medium";
+        return {
+          name: operation.summary || operationId,
+          code: signature,
+          copy: operation.description || operation.summary || `${method.toUpperCase()} ${path} from imported OpenAPI spec.`,
+          owner: spec.info?.title || "API owner",
+          auth: risk === "High" ? "Service account + approval" : "Read-only service",
+          risk,
+          importedFrom: "OpenAPI",
+          method: method.toUpperCase(),
+          path,
+        };
+      }),
+  );
+}
+
+function toToolIdentifier(name = "tool") {
+  const base = String(name)
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")
+    .toLowerCase();
+  return base || "tool";
+}
+
+function generateMcpServerCode({ name = "PRAXIS Tool Server", tools = [] } = {}) {
+  const safeTools = Array.isArray(tools) ? tools : [];
+  const registrations = safeTools
+    .map((tool) => {
+      const toolName = toToolIdentifier(tool.name || tool.code);
+      const description = String(tool.copy || "Generated from PRAXIS Tool Fabric.").replace(/`/g, "\\`");
+      const displayName = String(tool.name || toolName).replace(/\*\//g, "* /");
+      const contract = String(tool.code || `${toolName}(input)`).replace(/\*\//g, "* /");
+      const auth = String(tool.auth || "unspecified").replace(/\*\//g, "* /");
+      const risk = String(tool.risk || "Medium").replace(/\*\//g, "* /");
+      return `server.tool(
+  "${toolName}",
+  \`${description}\`,
+  {
+    input: z.any().optional()
+  },
+  async ({ input }) => {
+    // TODO: Wire ${displayName} to the real enterprise API.
+    // Contract: ${contract}
+    // Auth: ${auth}
+    // Risk: ${risk}
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ ok: false, message: "Tool stub not connected yet", input }, null, 2)
+        }
+      ]
+    };
+  }
+);`;
+    })
+    .join("\n\n");
+
+  return `import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+const server = new McpServer({
+  name: "${String(name).replace(/"/g, '\\"')}",
+  version: "0.1.0"
+});
+
+${registrations || "// Add tools in PRAXIS Tool Fabric, then regenerate this file."}
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+`;
+}
+
+function runGovernanceChecks(project = {}) {
+  const connectors = Array.isArray(project.connectors) ? project.connectors : [];
+  const tools = Array.isArray(project.tools) ? project.tools : [];
+  const governance = project.governance || {};
+  const approvals = Array.isArray(governance.approvals) ? governance.approvals : [];
+  const policies = Array.isArray(governance.policies) ? governance.policies : [];
+  const auditEvents = Array.isArray(governance.auditEvents) ? governance.auditEvents : [];
+  const findings = [];
+
+  connectors.forEach((connector) => {
+    if (connector.status === "Blocked" || connector.access === "No access") {
+      findings.push({
+        severity: "High",
+        area: "Connector access",
+        title: `${connector.name} is not accessible`,
+        detail: "Production or pilot runs should not depend on blocked data sources.",
+      });
+    }
+    if (["PII", "Regulated"].includes(connector.dataClass) && !String(connector.access || "").toLowerCase().includes("pending") && !approvals.some((approval) => approval.status === "Approved")) {
+      findings.push({
+        severity: "Medium",
+        area: "Sensitive data",
+        title: `${connector.name} contains ${connector.dataClass} data`,
+        detail: "Sensitive sources should have explicit approval and masking policy before agent retrieval.",
+      });
+    }
+  });
+
+  tools.forEach((tool) => {
+    if (tool.risk === "High" && !String(tool.auth || "").toLowerCase().includes("approval")) {
+      findings.push({
+        severity: "High",
+        area: "Tool control",
+        title: `${tool.name} is high-risk without approval auth`,
+        detail: "High-risk tools need service account + approval or human-only execution.",
+      });
+    }
+  });
+
+  if (!auditEvents.length || auditEvents.length < 5) {
+    findings.push({
+      severity: "High",
+      area: "Auditability",
+      title: "Audit trail is incomplete",
+      detail: "Every run should capture trigger, context, tools, model output, reviewer, action, and timestamp.",
+    });
+  }
+
+  const pendingApprovals = approvals.filter((approval) => approval.status !== "Approved");
+  pendingApprovals.forEach((approval) => {
+    findings.push({
+      severity: approval.status === "Blocked" ? "High" : "Medium",
+      area: "Approval gate",
+      title: `${approval.gate} is ${approval.status}`,
+      detail: approval.notes || "Approval must be resolved before controlled production.",
+    });
+  });
+
+  const requiredPolicies = policies.filter((policy) => ["High", "Critical"].includes(policy.severity));
+  const approvedOrRequired = requiredPolicies.filter((policy) => ["Approved", "Required"].includes(policy.status));
+  const score = Math.max(0, Math.min(100, Math.round(
+    100 -
+      findings.filter((finding) => finding.severity === "High").length * 18 -
+      findings.filter((finding) => finding.severity === "Medium").length * 8 +
+      (requiredPolicies.length ? (approvedOrRequired.length / requiredPolicies.length) * 10 : 0),
+  )));
+
+  return {
+    score,
+    passed: score >= 80 && !findings.some((finding) => finding.severity === "High"),
+    findings,
+    checkedAt: new Date().toISOString(),
   };
 }
 
@@ -543,6 +870,27 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/retrieval/query") {
+    const body = await readJsonBody(req);
+    const query = String(body.query || "").trim();
+    const limit = Math.max(1, Math.min(20, Number(body.limit) || 6));
+    const documents = Array.isArray(db.documents) ? db.documents : [];
+    const results = retrieveDocumentChunks(documents, query, limit);
+    const nextDb = appendAudit(db, "retrieval.query", {
+      query,
+      resultCount: results.length,
+      documentCount: documents.length,
+    });
+    await writeDb(nextDb);
+    sendJson(res, 200, {
+      ok: true,
+      query,
+      totalDocuments: documents.length,
+      results,
+    });
+    return;
+  }
+
   if (req.method === "DELETE" && url.pathname.startsWith("/api/documents/")) {
     const documentId = decodeURIComponent(url.pathname.replace("/api/documents/", ""));
     const currentDocuments = Array.isArray(db.documents) ? db.documents : [];
@@ -593,7 +941,7 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && url.pathname === "/api/intake/workspace") {
     const body = await readJsonBody(req);
-    const result = buildWorkspacePatchFromIntake(body.text || "");
+    const result = await buildWorkspacePatchFromIntakeWithProvider(body.text || "");
     const nextDb = appendAudit(db, "intake.workspace.generated", {
       templateKey: result.templateKey,
       workflowName: result.projectPatch.workflowName,
@@ -607,11 +955,55 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && url.pathname === "/api/evals/run") {
     const body = await readJsonBody(req);
-    const result = runServerEvalSuite(body.project || db.workspace?.project || {});
+    const result = runServerEvalSuite(body.project || db.workspace?.project || {}, Array.isArray(db.documents) ? db.documents : []);
     const nextDb = appendAudit(db, "evals.run", {
       workflowName: body.project?.workflowName || db.workspace?.project?.workflowName,
       gateScore: result.summary.gateScore,
       passed: result.summary.passed,
+      retrievalCoverage: result.summary.retrievalCoverage,
+    });
+    await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, ...result });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/openapi/import") {
+    const body = await readJsonBody(req);
+    const spec = typeof body.spec === "string" ? JSON.parse(body.spec) : body.spec;
+    const tools = generateToolsFromOpenApi(spec || {});
+    const nextDb = appendAudit(db, "openapi.imported", {
+      title: spec?.info?.title,
+      tools: tools.length,
+    });
+    await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, title: spec?.info?.title || "OpenAPI import", tools });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/mcp/generate") {
+    const body = await readJsonBody(req);
+    const project = body.project || db.workspace?.project || {};
+    const tools = Array.isArray(body.tools) ? body.tools : Array.isArray(project.tools) ? project.tools : [];
+    const code = generateMcpServerCode({
+      name: `${project.workflowName || "PRAXIS"} MCP Server`,
+      tools,
+    });
+    const nextDb = appendAudit(db, "mcp.generated", {
+      workflowName: project.workflowName,
+      tools: tools.length,
+    });
+    await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, code, toolCount: tools.length });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/governance/check") {
+    const body = await readJsonBody(req);
+    const result = runGovernanceChecks(body.project || db.workspace?.project || {});
+    const nextDb = appendAudit(db, "governance.checked", {
+      score: result.score,
+      passed: result.passed,
+      findings: result.findings.length,
     });
     await writeDb(nextDb);
     sendJson(res, 200, { ok: true, ...result });

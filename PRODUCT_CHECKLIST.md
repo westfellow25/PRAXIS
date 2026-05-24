@@ -14,7 +14,7 @@
 | [x] | Повторяемый deployment workflow | Intake -> context -> connectors -> tools -> agent -> evals -> deployment -> readout -> playbook | Готово | В MVP есть весь сквозной путь |
 | [x] | Reusable playbooks | Успешный кейс превращается в шаблон | Готово | Есть Playbooks: save, search, clone, export/import |
 | [ ] | Реальный multi-user collaboration | Совместная работа FDE, клиента и руководителей | Не начато | Локальный backend появился, но accounts/permissions еще нет |
-| [ ] | Реальный enterprise deployment | VPC/on-prem/cloud deployment | Не начато | Пока static локальный MVP |
+| [ ] | Реальный enterprise deployment | VPC/on-prem/cloud deployment | Не начато | Пока локальный MVP; нужен внешний cloud/VPC контур |
 
 ## 2. Connectors Layer
 
@@ -81,8 +81,8 @@
 | [x] | Risk level | Low/Medium/High | Готово | Есть поле risk |
 | [x] | Tool readiness score | Оценка готовности tool | Готово | Есть scoring |
 | [x] | MCP-style manifest | JSON preview tool contract | Готово | Есть manifest preview |
-| [ ] | Реальный OpenAPI ingestion | Импорт OpenAPI specs | Не начато | Нужен parser |
-| [ ] | Реальный MCP server generation | Генерация MCP tools | Не начато | Нужен backend/codegen |
+| [x] | Реальный OpenAPI ingestion | Импорт OpenAPI specs | Частично | Paste OpenAPI JSON -> `/api/openapi/import` -> Tool Fabric rows; upload/codegen еще не готовы |
+| [x] | Реальный MCP server generation | Генерация MCP tools | Частично | `/api/mcp/generate` создаёт starter MCP server scaffold; реальные API stubs надо wiring вручную |
 | [ ] | Tool sandbox execution | Безопасный пробный вызов API | Не начато | Нужна runtime-инфраструктура |
 | [ ] | Error/failure mode catalog | Ошибки API и safe defaults | Не начато | Можно добавить как следующий слой |
 
@@ -98,7 +98,7 @@
 | [ ] | Data Readiness Agent | Анализирует качество данных | Не начато | Нужны connectors + evals |
 | [ ] | API Readiness Agent | Проверяет API пригодность | Не начато | Нужен OpenAPI/API testing |
 | [ ] | Workflow Agent | Реально выполняет задачу | Не начато | Пока симуляция |
-| [ ] | Compliance Agent | Реально проверяет политики | Не начато | Пока governance checklist |
+| [x] | Compliance Agent | Реально проверяет политики | Частично | `/api/governance/check` делает pre-flight findings; runtime enforcement еще не готов |
 | [ ] | Human Handoff Agent | Очередь ручных решений | Не начато | Нужен backend/workflow queue |
 
 ## 8. Evals & Observability
@@ -111,7 +111,7 @@
 | [x] | Critical blocker logic | Critical fail блокирует pilot | Готово | Есть logic |
 | [x] | Audit trace in Pilot Console | Что было сделано и записано | Частично | Есть симуляция trace |
 | [ ] | Golden datasets | Реальные historical cases | Не начато | Нужны данные клиента |
-| [ ] | Retrieval accuracy evals | Проверка, нашёл ли агент правильные документы | Не начато | Нужен retrieval backend |
+| [x] | Retrieval accuracy evals | Проверка, нашёл ли агент правильные документы | Частично | Backend eval runner учитывает retrieval evidence coverage; golden datasets еще не готовы |
 | [ ] | Recommendation match evals | Сравнение с human decisions | Не начато | Нужна база прошлых решений |
 | [ ] | Hallucination checks | Проверка unsupported claims | Не начато | Нужен LLM/eval engine |
 | [ ] | Cost/latency tracking | Метрики каждого agent run | Не начато | Нужен runtime |
@@ -175,7 +175,7 @@
 | [x] | Agent-ready tools | Безопасные API для агентов | Частично | Есть design layer, нет реального execution |
 | [x] | Eval library | Библиотека тестов по индустриям | Частично | Есть templates, нет реальной базы |
 | [x] | Playbook marketplace | Повторяемые deployment-шаблоны | Частично | Есть local library, нет marketplace |
-| [x] | Governance | Безопасный enterprise deployment | Частично | Есть UI/checklist, нет enforcement |
+| [x] | Governance | Безопасный enterprise deployment | Частично | Есть UI, approvals, audit checklist и pre-flight enforcement check; нет runtime OPA/secrets/masking |
 | [ ] | Cross-customer learning | Каждый deployment улучшает платформу | Не начато | Нужна hosted платформа и data model |
 | [ ] | Integration breadth | Много реальных connectors | Не начато | Нужна интеграционная команда |
 | [ ] | Switching cost | Клиент хранит deployment memory в PRAXIS | Не начато | Появится после backend/workspaces |
@@ -187,10 +187,10 @@
 | P0 | [ ] | Перенести проект в нормальный repo | Нужна база для разработки |
 | P0 | [x] | Добавить backend | Локальный Node backend готов без внешних зависимостей |
 | P0 | [x] | Добавить database schema | JSON schema готова в `DATABASE_SCHEMA.md`; локальная БД `data/praxis-db.json` |
-| P0 | [ ] | Подключить реальный LLM intake | Частично: backend endpoint `/api/intake/workspace` готов, но extractor пока deterministic без LLM API |
+| P0 | [x] | Подключить реальный LLM intake | Частично: backend поддерживает OpenAI-compatible `LLM_ENDPOINT`/`LLM_MODEL`/`LLM_API_KEY`, но без ключа работает deterministic fallback |
 | P1 | [x] | Реальный run trace storage | Pilot Console сохраняет runs в локальный backend через `POST /api/runs` |
 | P1 | [ ] | Реальный eval runner | Проверять агента на datasets |
-| P1 | [ ] | OpenAPI/MCP import | Быстро превращать API в tools |
+| P1 | [x] | OpenAPI/MCP import | OpenAPI JSON превращается в Tool Fabric rows; MCP server scaffold генерируется через `/api/mcp/generate` |
 | P1 | [ ] | Auth/permissions model | Enterprise-grade trust |
 | P2 | [x] | First real connector | Local file/paste document ingestion готов в Knowledge Base |
 | P2 | [ ] | Team collaboration | Несколько пользователей в workspace |

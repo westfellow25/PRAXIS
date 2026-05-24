@@ -52,16 +52,21 @@ The backend lives in `server.js` and exposes:
 - `GET /api/documents`
 - `POST /api/documents`
 - `POST /api/documents/search`
+- `POST /api/retrieval/query`
 - `DELETE /api/documents/:id`
 - `POST /api/intake`
 - `POST /api/intake/workspace`
 - `POST /api/evals/run`
+- `POST /api/openapi/import`
+- `POST /api/mcp/generate`
+- `POST /api/governance/check`
 
 The local database is `data/praxis-db.json`.
 
 See `DATABASE_SCHEMA.md` for the current schema.
+See `schema.sql` for the Postgres-ready schema draft.
 
-`POST /api/intake/workspace` is the first backend intake engine. It takes messy client notes and returns a structured workspace patch: best template, KPI timings, human-review target, source systems, connector patches, success metric, and first-agent summary. Today it uses a deterministic extractor shaped around the future LLM contract.
+`POST /api/intake/workspace` is the first backend intake engine. It takes messy client notes and returns a structured workspace patch: best template, KPI timings, human-review target, source systems, connector patches, success metric, and first-agent summary. By default it uses a deterministic extractor. If `.env` includes `LLM_ENDPOINT`, `LLM_MODEL`, and `LLM_API_KEY`, the backend uses an OpenAI-compatible chat-completions adapter and falls back to deterministic extraction if the provider fails.
 
 ## Roadmap checklist
 
@@ -81,13 +86,18 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - View an ingestion plan that explains how PRAXIS connects, masks, indexes, and proves client data.
 - Upload or paste `.txt`, `.md`, and `.json` client documents into Knowledge Base.
 - Extract document summaries, chunks, keywords, systems, and risk signals for retrieval-ready context.
+- Query document chunks through backend retrieval and show citations inside the Pilot Run Console evidence packet.
+- Paste OpenAPI JSON specs into Tool Fabric and turn operations into agent-ready tools.
+- Generate an MCP server scaffold from the current Tool Fabric.
 - Score API/tool readiness and edit owner, auth model, risk, callable signatures, and descriptions.
 - Generate an MCP-style tool manifest preview.
 - Manage governance policies, approval gates, audit trail requirements, and governance readiness.
+- Run a governance pre-flight check that flags blocked connectors, sensitive data, high-risk tools, pending approvals, and audit gaps.
 - Use the Pilot Run Console to inspect a full case trace, evidence packet, decision boundary, approval route, and audit payload.
 - Calculate annual net value, monthly hours saved, payback, and conservative/base/upside scenarios.
 - Edit eval cases with input, expected output, category, severity, and last actual result.
 - Run a deterministic eval gate that reports pass, warning, failure, critical blockers, and pilot readiness.
+- Include retrieval coverage in backend eval runs when Knowledge Base documents exist.
 - Manage a deployment timeline, rollout checklist, blockers, owners, statuses, and exit criteria.
 - Save the current workspace as a reusable playbook.
 - Search playbooks and clone a template back into the active workspace.

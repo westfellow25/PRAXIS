@@ -469,10 +469,32 @@
                   <div class="eyebrow">Manifest preview</div>
                   <h2>MCP-style tool contract</h2>
                 </div>
+                <button class="ghost-button small" id="generate-mcp-server">Generate server</button>
               </div>
               <pre class="manifest-preview" id="tool-manifest"></pre>
             </article>
           </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">MCP server scaffold</div>
+                <h2>Generated starter server from the current Tool Fabric</h2>
+              </div>
+            </div>
+            <pre class="manifest-preview" id="mcp-server-preview"></pre>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">OpenAPI import</div>
+                <h2>Paste an OpenAPI JSON spec and generate agent-ready tools</h2>
+              </div>
+              <button class="primary-button small" id="import-openapi">Import tools</button>
+            </div>
+            <textarea class="openapi-textarea" id="openapi-input" rows="8" spellcheck="false" placeholder='{"openapi":"3.0.0","info":{"title":"Compliance API"},"paths":{"/customers/{id}":{"get":{"operationId":"getCustomer","summary":"Get customer","parameters":[{"name":"id","in":"path"}]}}}}'></textarea>
+          </article>
         </section>
 
         <section class="view" id="governance">
@@ -485,10 +507,12 @@
               <div class="panel-actions">
                 <button class="ghost-button small" id="add-policy">Add policy</button>
                 <button class="ghost-button small" id="add-approval">Add approval</button>
+                <button class="primary-button small" id="run-governance-check">Run check</button>
                 <span class="status-pill" id="governance-health">Checking</span>
               </div>
             </div>
             <div class="governance-matrix" id="governance-matrix"></div>
+            <div class="governance-findings" id="governance-findings"></div>
           </article>
 
           <div class="two-column">

@@ -266,7 +266,8 @@
           <h1>Что осталось сделать</h1>
           <p class="lead">
             Это рабочий чеклист после текущего состояния MVP. Сейчас у нас есть local full-stack prototype:
-            frontend, backend, JSON database, AI Intake endpoint, Eval Runner, Pilot Runs и Knowledge Base.
+            frontend, backend, JSON database, AI Intake endpoint, optional LLM adapter, Eval Runner, Pilot Runs,
+            Knowledge Base, Retrieval, OpenAPI import, MCP scaffold и Governance checks.
             Дальше нужно превращать это в enterprise-grade FDE Operating System.
           </p>
         </div>
@@ -278,9 +279,9 @@
       </section>
 
       <section class="stats">
-        <article class="stat"><span>Готово</span><strong>8</strong></article>
-        <article class="stat"><span>Частично</span><strong>10</strong></article>
-        <article class="stat"><span>Не начато</span><strong>11</strong></article>
+        <article class="stat"><span>Готово</span><strong>9</strong></article>
+        <article class="stat"><span>Частично</span><strong>9</strong></article>
+        <article class="stat"><span>Не начато</span><strong>7</strong></article>
         <article class="stat"><span>Следующий фокус</span><strong>P0</strong></article>
       </section>
 
@@ -305,7 +306,7 @@
           </div>
           <div class="row orange">
             <span>Persistence</span><strong>Database layer</strong><span class="badge orange">Частично</span>
-            <p>Есть `data/praxis-db.json` и schema doc.</p><p>Сделать Postgres schema, migrations, IDs, relations, indexes.</p><span class="priority">P0</span>
+            <p>Есть `data/praxis-db.json`, schema doc и `schema.sql`.</p><p>Осталось: реальные migrations, hosted Postgres, backups.</p><span class="priority">P0</span>
           </div>
           <div class="row red">
             <span>Auth</span><strong>Accounts and workspace permissions</strong><span class="badge red">Не начато</span>
@@ -327,15 +328,15 @@
           </div>
           <div class="row orange">
             <span>Intake</span><strong>Real LLM workspace generation</strong><span class="badge orange">Частично</span>
-            <p>`/api/intake/workspace` строит structured patch deterministic extractor.</p><p>Подключить OpenAI/LLM provider, JSON schema validation, retry/repair.</p><span class="priority">P0</span>
+            <p>`/api/intake/workspace` строит structured patch и поддерживает OpenAI-compatible LLM adapter.</p><p>Осталось: production JSON schema validation, retry/repair, реальные ключи.</p><span class="priority">P0</span>
           </div>
           <div class="row green">
             <span>Knowledge</span><strong>Document ingestion</strong><span class="badge green">Готово</span>
             <p>Upload/paste `.txt`, `.md`, `.json`; chunks, keywords, systems, risk signals.</p><p>Добавить PDF/DOCX extraction позже.</p><span class="priority">P1</span>
           </div>
-          <div class="row orange next">
-            <span>Retrieval</span><strong>Context retrieval tool</strong><span class="badge orange">Следующее</span>
-            <p>Документы уже chunked и searchable.</p><p>Сделать `/api/retrieval/query` и подключить к Pilot Console / Agent Builder.</p><span class="priority">P0</span>
+          <div class="row green">
+            <span>Retrieval</span><strong>Context retrieval tool</strong><span class="badge green">Готово</span>
+            <p>`/api/retrieval/query` ищет top chunks + citations.</p><p>Pilot Console использует найденные документы в evidence packet.</p><span class="priority">P0</span>
           </div>
           <div class="row orange">
             <span>Context Graph</span><strong>Persistent graph memory</strong><span class="badge orange">Частично</span>
@@ -347,11 +348,11 @@
           </div>
           <div class="row orange">
             <span>Tool Fabric</span><strong>OpenAPI to agent-ready tools</strong><span class="badge orange">Частично</span>
-            <p>Tool inventory, auth, risk, MCP-style manifest.</p><p>Импорт OpenAPI specs, generate MCP server, sandbox tool calls.</p><span class="priority">P0</span>
+            <p>Tool inventory, auth, risk, MCP-style manifest, OpenAPI JSON import и MCP server scaffold есть.</p><p>Осталось: sandbox tool calls, real API wiring, error/failure catalog.</p><span class="priority">P0</span>
           </div>
           <div class="row orange">
             <span>Evals</span><strong>Real eval runner</strong><span class="badge orange">Частично</span>
-            <p>`/api/evals/run` есть, но deterministic simulation.</p><p>Golden datasets, retrieval accuracy, recommendation match, hallucination checks.</p><span class="priority">P0</span>
+            <p>`/api/evals/run` есть, deterministic gate + retrieval evidence coverage.</p><p>Осталось: golden datasets, recommendation match, hallucination checks.</p><span class="priority">P0</span>
           </div>
           <div class="row orange">
             <span>Pilot</span><strong>Run trace storage</strong><span class="badge orange">Частично</span>
@@ -363,7 +364,7 @@
           </div>
           <div class="row orange">
             <span>Governance</span><strong>Policy enforcement</strong><span class="badge orange">Частично</span>
-            <p>Policies, approvals, audit requirements есть в UI.</p><p>OPA-like rules, runtime enforcement, data masking, secrets vault.</p><span class="priority">P0</span>
+            <p>Policies, approvals, audit requirements и `/api/governance/check` есть.</p><p>Осталось: runtime OPA-like enforcement, data masking, secrets vault.</p><span class="priority">P0</span>
           </div>
         </div>
       </section>
@@ -417,25 +418,25 @@
           <div class="row header">
             <span>День</span><span>Задача</span><span>Статус</span><span>Почему важно</span><span>Definition of done</span><span>Priority</span>
           </div>
-          <div class="row orange next">
-            <span>Day 1</span><strong>Retrieval query API</strong><span class="badge orange">Следующее</span>
-            <p>Документы уже есть, нужен настоящий context retrieval.</p><p>`POST /api/retrieval/query` возвращает top chunks + citations.</p><span class="priority">P0</span>
+          <div class="row green">
+            <span>Day 1</span><strong>Retrieval query API</strong><span class="badge green">Готово</span>
+            <p>Документы уже ищутся через backend retrieval.</p><p>`POST /api/retrieval/query` возвращает top chunks + citations.</p><span class="priority">P0</span>
           </div>
-          <div class="row red">
-            <span>Day 2</span><strong>Use retrieval in Pilot Console</strong><span class="badge red">Не начато</span>
-            <p>Pilot должен опираться на документы, а не только на симуляцию.</p><p>Evidence packet показывает реальные chunks/citations.</p><span class="priority">P0</span>
+          <div class="row green">
+            <span>Day 2</span><strong>Use retrieval in Pilot Console</strong><span class="badge green">Готово</span>
+            <p>Pilot теперь опирается на документы, если они загружены.</p><p>Evidence packet показывает найденные chunks/citations.</p><span class="priority">P0</span>
           </div>
-          <div class="row red">
-            <span>Day 3</span><strong>LLM provider adapter</strong><span class="badge red">Не начато</span>
-            <p>Нужно заменить deterministic intake на real structured generation.</p><p>Adapter + JSON schema + `.env` config.</p><span class="priority">P0</span>
+          <div class="row green">
+            <span>Day 3</span><strong>LLM provider adapter</strong><span class="badge green">Готово</span>
+            <p>Adapter + `.env` config добавлены.</p><p>Если есть `LLM_ENDPOINT`, `LLM_MODEL`, `LLM_API_KEY`, intake вызывает provider; без ключа fallback deterministic.</p><span class="priority">P0</span>
           </div>
-          <div class="row red">
-            <span>Day 4</span><strong>OpenAPI import</strong><span class="badge red">Не начато</span>
-            <p>FDE-продукт обязан быстро превращать API docs в tools.</p><p>Paste/upload OpenAPI -> Tool Fabric rows.</p><span class="priority">P0</span>
+          <div class="row green">
+            <span>Day 4</span><strong>OpenAPI import</strong><span class="badge green">Готово</span>
+            <p>FDE-продукт уже быстро превращает API docs в tools.</p><p>Paste OpenAPI JSON -> Tool Fabric rows через `/api/openapi/import`.</p><span class="priority">P0</span>
           </div>
-          <div class="row red">
-            <span>Day 5</span><strong>Postgres-ready schema</strong><span class="badge red">Не начато</span>
-            <p>JSON DB хороша для MVP, но не для продукта.</p><p>SQL schema/migrations draft готов.</p><span class="priority">P1</span>
+          <div class="row green">
+            <span>Day 5</span><strong>Postgres-ready schema</strong><span class="badge green">Готово</span>
+            <p>JSON DB хороша для MVP, но не для продукта.</p><p>`schema.sql` добавлен: workspaces, documents, chunks, tools, governance, evals, runs, playbooks, audit.</p><span class="priority">P1</span>
           </div>
         </div>
       </section>

@@ -1175,6 +1175,7 @@ p {
 
 .document-form input,
 .document-form textarea,
+.openapi-textarea,
 .search-input {
   width: 100%;
   border: 1px solid var(--line);
@@ -1189,6 +1190,14 @@ p {
 .document-form textarea {
   min-height: 160px;
   resize: vertical;
+}
+
+.openapi-textarea {
+  min-height: 220px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .document-insight-card,
@@ -1264,6 +1273,7 @@ p {
 }
 
 .governance-matrix,
+.governance-findings,
 .approval-board,
 .audit-trail,
 .governance-editor {
@@ -1288,6 +1298,106 @@ p {
   color: var(--muted);
   font-size: 12px;
   font-weight: 850;
+}
+
+.governance-findings {
+  margin-top: 12px;
+}
+
+.governance-summary,
+.governance-finding {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(248, 245, 236, 0.72);
+  padding: 13px;
+}
+
+.governance-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-left: 4px solid var(--gold);
+}
+
+.governance-summary.passed {
+  border-left-color: var(--green);
+  background: var(--green-soft);
+}
+
+.governance-summary.blocked {
+  border-left-color: var(--red);
+  background: var(--red-soft);
+}
+
+.governance-summary strong,
+.governance-finding strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.governance-summary span,
+.governance-finding p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.governance-score {
+  display: grid;
+  min-width: 66px;
+  min-height: 38px;
+  place-items: center;
+  border-radius: 8px;
+  background: #fffdf7;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.governance-finding {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 12px;
+  border-left: 4px solid var(--gold);
+}
+
+.governance-finding > span {
+  display: inline-flex;
+  width: fit-content;
+  height: 26px;
+  align-items: center;
+  border-radius: 999px;
+  background: #fffdf7;
+  color: var(--gold);
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.governance-finding.high,
+.governance-finding.critical {
+  border-left-color: var(--red);
+}
+
+.governance-finding.high > span,
+.governance-finding.critical > span {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.governance-finding.medium {
+  border-left-color: var(--gold);
+}
+
+.governance-finding.low {
+  border-left-color: var(--green);
+}
+
+.governance-finding.low > span {
+  background: var(--green-soft);
+  color: var(--green);
 }
 
 .approval-card,
@@ -1684,6 +1794,24 @@ p {
   color: var(--red);
   cursor: pointer;
   font-weight: 850;
+}
+
+.eval-evidence {
+  border: 1px solid rgba(47, 125, 87, 0.22);
+  border-radius: 8px;
+  background: var(--green-soft);
+  padding: 10px 12px;
+}
+
+.eval-evidence strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.eval-evidence span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .deployment-timeline {

@@ -4,6 +4,8 @@ The first backend uses a local JSON database at `data/praxis-db.json`.
 
 This is intentionally simple: it lets us validate the product data model before moving to Postgres.
 
+The Postgres-ready draft is in `schema.sql`.
+
 ## Top-level shape
 
 ```json
@@ -119,6 +121,86 @@ Documents are ingested from the Knowledge Base screen through `POST /api/documen
     }
   ],
   "createdAt": "ISO timestamp"
+}
+```
+
+## retrieval query response
+
+`POST /api/retrieval/query` searches document chunks and returns evidence that the Pilot Console can cite during a simulated agent run.
+
+```json
+{
+  "ok": true,
+  "query": "AML alert KYC sanctions policy",
+  "totalDocuments": 3,
+  "results": [
+    {
+      "documentId": "uuid",
+      "documentName": "aml-policy.md",
+      "chunkId": "chunk-001",
+      "score": 8,
+      "text": "Relevant policy chunk",
+      "keywords": ["aml", "sanctions", "approval"],
+      "citation": "aml-policy.md#chunk-001"
+    }
+  ]
+}
+```
+
+## OpenAPI import response
+
+`POST /api/openapi/import` converts OpenAPI paths into Tool Fabric rows.
+
+```json
+{
+  "ok": true,
+  "title": "Compliance API",
+  "tools": [
+    {
+      "name": "Get customer",
+      "code": "getCustomer(id)",
+      "copy": "GET /customers/{id} from imported OpenAPI spec.",
+      "owner": "Compliance API",
+      "auth": "Read-only service",
+      "risk": "Medium",
+      "importedFrom": "OpenAPI",
+      "method": "GET",
+      "path": "/customers/{id}"
+    }
+  ]
+}
+```
+
+## MCP generation response
+
+`POST /api/mcp/generate` converts the active Tool Fabric into a starter MCP server file. The generated file is a scaffold: every tool stub still needs to be wired to the real enterprise API.
+
+```json
+{
+  "ok": true,
+  "toolCount": 6,
+  "code": "import { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";..."
+}
+```
+
+## governance check response
+
+`POST /api/governance/check` runs a pre-flight policy check over the active project before a pilot is treated as production-ready.
+
+```json
+{
+  "ok": true,
+  "score": 74,
+  "passed": false,
+  "checkedAt": "ISO timestamp",
+  "findings": [
+    {
+      "severity": "High",
+      "area": "Connector access",
+      "title": "Transaction warehouse is not accessible",
+      "detail": "Production or pilot runs should not depend on blocked data sources."
+    }
+  ]
 }
 ```
 
