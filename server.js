@@ -126,6 +126,80 @@ function buildServerIntake(text = "") {
   };
 }
 
+function scoreServerTool(tool) {
+  let score = 25;
+  if (tool.name && tool.name.length > 3) score += 15;
+  if (tool.code && tool.code.includes("(") && tool.code.includes(")")) score += 20;
+  if (tool.copy && tool.copy.length > 35) score += 15;
+  if (tool.owner && tool.owner !== "API owner") score += 10;
+  if (tool.auth) score += 10;
+  if (`${tool.name || ""} ${tool.copy || ""}`.toLowerCase().includes("audit")) score += 5;
+  return Math.min(100, score);
+}
+
+function runServerEvalSuite(project = {}) {
+  const tools = Array.isArray(project.tools) ? project.tools : [];
+  const evalCases = Array.isArray(project.evalCases) ? project.evalCases : [];
+  const readiness = Number(project.readiness) || 0;
+  const toolAverage = Math.round(tools.reduce((sum, tool) => sum + scoreServerTool(tool), 0) / Math.max(1, tools.length));
+  const hasAudit = tools.some((tool) => `${tool.name || ""} ${tool.code || ""} ${tool.copy || ""}`.toLowerCase().match(/audit|trace/));
+
+  const nextEvalCases = evalCases.map((test, index) => {
+    const severity = test.severity || "Medium";
+    const severityPenalty = { Low: 0, Medium: 6, High: 12, Critical: 18 }[severity] ?? 6;
+    const score = Math.max(0, Math.min(100, Math.round((readiness + toolAverage) / 2 - severityPenalty + (hasAudit ? 8 : 0))));
+    if (severity === "Critical" && !hasAudit) {
+      return {
+        ...test,
+        id: test.id || `eval-${index + 1}`,
+        result: "fail",
+        actual: "Backend gate failed: critical eval requires audit or trace coverage before pilot.",
+      };
+    }
+    if (score >= 74) {
+      return {
+        ...test,
+        id: test.id || `eval-${index + 1}`,
+        result: "pass",
+        actual: `Backend gate passed with score ${score}. Evidence, tool readiness, and controls are sufficient for pilot.`,
+      };
+    }
+    if (score >= 58) {
+      return {
+        ...test,
+        id: test.id || `eval-${index + 1}`,
+        result: "warn",
+        actual: `Backend gate warning with score ${score}. Safe for sandbox, but needs stronger coverage before scale-up.`,
+      };
+    }
+    return {
+      ...test,
+      id: test.id || `eval-${index + 1}`,
+      result: "fail",
+      actual: `Backend gate failed with score ${score}. Fix context, tools, or controls before live traffic.`,
+    };
+  });
+
+  const resultCounts = nextEvalCases.reduce(
+    (counts, test) => ({ ...counts, [test.result]: (counts[test.result] || 0) + 1 }),
+    { pass: 0, warn: 0, fail: 0 },
+  );
+  const criticalFails = nextEvalCases.filter((test) => test.severity === "Critical" && test.result === "fail").length;
+  const gateScore = Math.round((resultCounts.pass * 100 + resultCounts.warn * 70) / Math.max(1, nextEvalCases.length));
+  return {
+    evalCases: nextEvalCases,
+    summary: {
+      gateScore,
+      passed: criticalFails === 0 && gateScore >= 80,
+      criticalFails,
+      resultCounts,
+      toolAverage,
+      hasAudit,
+      evaluatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 async function handleApi(req, res, url) {
   const db = await readDb();
 
@@ -218,6 +292,19 @@ async function handleApi(req, res, url) {
   if (req.method === "POST" && url.pathname === "/api/intake") {
     const body = await readJsonBody(req);
     sendJson(res, 200, { ok: true, intake: buildServerIntake(body.text || "") });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/evals/run") {
+    const body = await readJsonBody(req);
+    const result = runServerEvalSuite(body.project || db.workspace?.project || {});
+    const nextDb = appendAudit(db, "evals.run", {
+      workflowName: body.project?.workflowName || db.workspace?.project?.workflowName,
+      gateScore: result.summary.gateScore,
+      passed: result.summary.passed,
+    });
+    await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, ...result });
     return;
   }
 

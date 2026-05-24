@@ -2648,8 +2648,34 @@ function renderEvalSummary() {
   document.querySelector("#score-ring span").textContent = String(gateScore);
 }
 
-function runEvals() {
+async function runEvals() {
   state.evalsRun = true;
+  try {
+    const response = await apiRequest("/evals/run", {
+      method: "POST",
+      body: JSON.stringify({ project: state.project }),
+    });
+    state.project.evalCases = response.evalCases;
+    const { resultCounts, gateScore, passed } = response.summary;
+    saveProject("Backend evals run");
+    renderEvals();
+    renderContextGraph();
+    renderPilotRunConsole();
+    renderDeploymentPlan();
+    renderReadout();
+    document.querySelector("#eval-status").textContent = passed ? "Ready for pilot" : "Blocked";
+    document.querySelector("#eval-status").className = `status-pill ${passed ? "green" : "amber"}`;
+    document.querySelector("#eval-summary-title").textContent = passed ? "Pilot gate passed" : "Pilot gate blocked";
+    document.querySelector("#eval-summary-copy").textContent = passed
+      ? `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Backend eval runner found no critical blockers.`
+      : `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Backend eval runner found unresolved blockers.`;
+    document.querySelector("#score-ring span").textContent = String(gateScore);
+    switchView("evals");
+    return;
+  } catch (error) {
+    console.info("Backend eval runner unavailable; using browser fallback", error);
+  }
+
   const toolAverage = Math.round(
     state.project.tools.reduce((sum, tool) => sum + scoreTool(tool), 0) / Math.max(1, state.project.tools.length),
   );
