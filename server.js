@@ -47,6 +47,7 @@ function createEmptyDb() {
     workspace: null,
     playbooks: [],
     runs: [],
+    handoffs: [],
     documents: [],
     auditLog: [],
   };
@@ -863,6 +864,63 @@ function runAgentRuntime({ project = {}, documents = [], caseInput = "" } = {}) 
   };
 }
 
+function createHandoffFromRun(run) {
+  if (!run?.requiresHumanReview) return null;
+  const now = new Date();
+  const dueAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const priority = run.outcome?.includes("Blocked") || run.confidence < 70 ? "High" : "Medium";
+  return {
+    id: randomUUID(),
+    runId: run.id,
+    clientName: run.clientName,
+    workflowName: run.workflowName,
+    gate: run.approvalGate?.gate || "Human review",
+    approver: run.approvalGate?.approver || "Workflow owner",
+    status: "Pending",
+    priority,
+    reason: run.outcome,
+    recommendation: run.decision?.recommendation || "Review the agent output before downstream action.",
+    nextAction: run.decision?.nextAction || "human_review_queue",
+    confidence: run.confidence,
+    evidenceCount: run.retrievalResults?.length || 0,
+    toolCount: run.callableTools?.length || 0,
+    dueAt: dueAt.toISOString(),
+    reviewerNotes: "",
+    decision: null,
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+    audit: [
+      {
+        event: "handoff.created",
+        detail: `Created from ${run.id} because ${run.outcome}.`,
+        createdAt: now.toISOString(),
+      },
+    ],
+  };
+}
+
+function updateHandoffRecord(handoff, patch = {}) {
+  const now = new Date().toISOString();
+  const nextStatus = patch.status || handoff.status;
+  const nextDecision = patch.decision || (["Approved", "Blocked"].includes(nextStatus) ? nextStatus.toLowerCase() : handoff.decision);
+  return {
+    ...handoff,
+    status: nextStatus,
+    priority: patch.priority || handoff.priority,
+    reviewerNotes: patch.reviewerNotes ?? handoff.reviewerNotes,
+    decision: nextDecision,
+    updatedAt: now,
+    audit: [
+      ...(Array.isArray(handoff.audit) ? handoff.audit : []),
+      {
+        event: "handoff.updated",
+        detail: `Status changed to ${nextStatus}${patch.reviewerNotes ? `: ${patch.reviewerNotes}` : ""}.`,
+        createdAt: now,
+      },
+    ],
+  };
+}
+
 function runGovernanceChecks(project = {}) {
   const connectors = Array.isArray(project.connectors) ? project.connectors : [];
   const tools = Array.isArray(project.tools) ? project.tools : [];
@@ -1002,6 +1060,39 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/handoffs") {
+    sendJson(res, 200, { ok: true, handoffs: Array.isArray(db.handoffs) ? db.handoffs : [] });
+    return;
+  }
+
+  if (req.method === "PATCH" && url.pathname.startsWith("/api/handoffs/")) {
+    const handoffId = decodeURIComponent(url.pathname.replace("/api/handoffs/", ""));
+    const body = await readJsonBody(req);
+    const currentHandoffs = Array.isArray(db.handoffs) ? db.handoffs : [];
+    const handoff = currentHandoffs.find((item) => item.id === handoffId);
+    if (!handoff) {
+      sendJson(res, 404, { ok: false, error: "Handoff not found" });
+      return;
+    }
+    const updated = updateHandoffRecord(handoff, {
+      status: body.status,
+      decision: body.decision,
+      priority: body.priority,
+      reviewerNotes: body.reviewerNotes,
+    });
+    const nextDb = appendAudit(
+      {
+        ...db,
+        handoffs: currentHandoffs.map((item) => (item.id === handoffId ? updated : item)),
+      },
+      "handoff.updated",
+      { handoffId, runId: updated.runId, status: updated.status, decision: updated.decision },
+    );
+    const saved = await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, handoff: updated, handoffs: saved.handoffs });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/documents") {
     sendJson(res, 200, { ok: true, documents: Array.isArray(db.documents) ? db.documents : [] });
     return;
@@ -1091,6 +1182,7 @@ async function handleApi(req, res, url) {
       documents: Array.isArray(db.documents) ? db.documents : [],
       caseInput: body.caseInput || "",
     });
+    const handoff = createHandoffFromRun(run);
     const nextDb = appendAudit(
       {
         ...db,
@@ -1107,6 +1199,7 @@ async function handleApi(req, res, url) {
           },
           ...(Array.isArray(db.runs) ? db.runs : []),
         ].slice(0, 500),
+        handoffs: handoff ? [handoff, ...(Array.isArray(db.handoffs) ? db.handoffs : [])].slice(0, 500) : db.handoffs,
       },
       "agent.run",
       {
@@ -1115,10 +1208,11 @@ async function handleApi(req, res, url) {
         outcome: run.outcome,
         confidence: run.confidence,
         requiresHumanReview: run.requiresHumanReview,
+        handoffId: handoff?.id,
       },
     );
     const saved = await writeDb(nextDb);
-    sendJson(res, 201, { ok: true, run, totalRuns: saved.runs.length });
+    sendJson(res, 201, { ok: true, run, handoff, totalRuns: saved.runs.length, totalHandoffs: saved.handoffs.length });
     return;
   }
 

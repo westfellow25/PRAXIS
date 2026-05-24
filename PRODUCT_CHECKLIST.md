@@ -99,7 +99,7 @@
 | [ ] | API Readiness Agent | Проверяет API пригодность | Не начато | Нужен OpenAPI/API testing |
 | [x] | Workflow Agent | Реально выполняет задачу | Частично | `/api/agent/run` выполняет deterministic runtime: retrieval, tools, evals, governance, decision, audit; настоящие tool calls еще не подключены |
 | [x] | Compliance Agent | Реально проверяет политики | Частично | `/api/governance/check` делает pre-flight findings; runtime enforcement еще не готов |
-| [ ] | Human Handoff Agent | Очередь ручных решений | Не начато | Нужен backend/workflow queue |
+| [x] | Human Handoff Agent | Очередь ручных решений | Частично | Agent Runtime создаёт handoff queue item; UI поддерживает approve/escalate/block; нет notifications и SLA automation |
 
 ## 8. Evals & Observability
 
@@ -112,7 +112,7 @@
 | [x] | Audit trace in Pilot Console | Что было сделано и записано | Частично | Backend Agent Runtime сохраняет trace; реальные model/tool call payloads еще не подключены |
 | [ ] | Golden datasets | Реальные historical cases | Не начато | Нужны данные клиента |
 | [x] | Retrieval accuracy evals | Проверка, нашёл ли агент правильные документы | Частично | Backend eval runner учитывает retrieval evidence coverage; golden datasets еще не готовы |
-| [ ] | Recommendation match evals | Сравнение с human decisions | Не начато | Нужна база прошлых решений |
+| [ ] | Recommendation match evals | Сравнение с human decisions | Частично | Handoff decisions уже сохраняются; нужен scoring против historical decisions |
 | [ ] | Hallucination checks | Проверка unsupported claims | Не начато | Нужен LLM/eval engine |
 | [ ] | Cost/latency tracking | Метрики каждого agent run | Не начато | Нужен runtime |
 | [ ] | Regression history | История качества по версиям | Не начато | Нужна БД |
@@ -128,7 +128,7 @@
 | [x] | Local persistence | Сохранение workspace | Готово | localStorage |
 | [x] | JSON export/import | Перенос workspace | Готово | Есть кнопки export/import |
 | [ ] | Comments/mentions | Совместные обсуждения | Не начато | Нужен backend |
-| [ ] | Tasks/owners with notifications | Реальные assignment/alerts | Не начато | Нужен backend/email/slack |
+| [ ] | Tasks/owners with notifications | Реальные assignment/alerts | Частично | Handoff queue хранит approver/status/due date; нет email/slack notifications |
 | [ ] | Role-based views | FDE/client/executive/compliance modes | Не начато | Можно добавить в UI |
 
 ## 10. Типовой AML workflow

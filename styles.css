@@ -2171,7 +2171,8 @@ p {
 
 .pilot-trace,
 .evidence-packet,
-.decision-audit {
+.decision-audit,
+.handoff-board {
   display: grid;
   gap: 10px;
 }
@@ -2239,6 +2240,80 @@ p {
 .evidence-card strong,
 .decision-card strong {
   color: var(--ink);
+}
+
+.handoff-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  border-radius: 8px;
+  background: rgba(248, 245, 236, 0.72);
+  padding: 14px;
+}
+
+.handoff-card.approved {
+  border-left-color: var(--green);
+}
+
+.handoff-card.blocked {
+  border-left-color: var(--red);
+}
+
+.handoff-card.empty {
+  grid-template-columns: 1fr;
+  border-left-color: var(--line);
+}
+
+.handoff-topline,
+.handoff-meta,
+.handoff-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.handoff-status {
+  border-radius: 999px;
+  background: #fffdf7;
+  color: var(--ink);
+  padding: 7px 9px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.handoff-card h3 {
+  margin: 10px 0 6px;
+}
+
+.handoff-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.handoff-meta {
+  margin-top: 10px;
+}
+
+.handoff-meta span,
+.handoff-notes {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.handoff-actions {
+  justify-content: flex-end;
+}
+
+.danger-action {
+  border-color: rgba(168, 74, 66, 0.24);
+  color: var(--red);
 }
 
 .readout {

@@ -149,6 +149,30 @@ create table run_trace_events (
   created_at timestamptz not null default now()
 );
 
+create table handoffs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references workspaces(id) on delete set null,
+  run_id uuid references pilot_runs(id) on delete set null,
+  client_name text not null,
+  workflow_name text not null,
+  gate text not null,
+  approver text,
+  status text not null default 'Pending',
+  priority text not null default 'Medium',
+  reason text,
+  recommendation text,
+  next_action text,
+  confidence integer,
+  evidence_count integer not null default 0,
+  tool_count integer not null default 0,
+  due_at timestamptz,
+  reviewer_notes text,
+  decision text,
+  audit jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table playbooks (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid references organizations(id) on delete cascade,
@@ -177,4 +201,6 @@ create index documents_workspace_idx on documents(workspace_id);
 create index tools_workspace_idx on tools(workspace_id);
 create index eval_cases_workspace_idx on eval_cases(workspace_id);
 create index pilot_runs_workspace_idx on pilot_runs(workspace_id);
+create index handoffs_workspace_idx on handoffs(workspace_id);
+create index handoffs_status_idx on handoffs(status);
 create index audit_events_workspace_idx on audit_events(workspace_id);

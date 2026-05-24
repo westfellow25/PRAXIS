@@ -267,7 +267,7 @@
           <p class="lead">
             Это рабочий чеклист после текущего состояния MVP. Сейчас у нас есть local full-stack prototype:
             frontend, backend, JSON database, AI Intake endpoint, optional LLM adapter, Eval Runner, Pilot Runs,
-            Knowledge Base, Retrieval, OpenAPI import, MCP scaffold, Governance checks и первый backend Agent Runtime.
+            Knowledge Base, Retrieval, OpenAPI import, MCP scaffold, Governance checks, backend Agent Runtime и Human Handoff Queue.
             Дальше нужно превращать это в enterprise-grade FDE Operating System.
           </p>
         </div>
@@ -280,8 +280,8 @@
 
       <section class="stats">
         <article class="stat"><span>Готово</span><strong>9</strong></article>
-        <article class="stat"><span>Частично</span><strong>10</strong></article>
-        <article class="stat"><span>Не начато</span><strong>6</strong></article>
+        <article class="stat"><span>Частично</span><strong>11</strong></article>
+        <article class="stat"><span>Не начато</span><strong>5</strong></article>
         <article class="stat"><span>Следующий фокус</span><strong>P0</strong></article>
       </section>
 
@@ -360,7 +360,11 @@
           </div>
           <div class="row orange">
             <span>Runtime</span><strong>Actual agent execution</strong><span class="badge orange">Частично</span>
-            <p>`/api/agent/run` выполняет deterministic runtime: retrieval, tool selection, eval gate, governance gate, human handoff.</p><p>Осталось: настоящие tool execution, approvals queue, retries, state machine.</p><span class="priority">P0</span>
+            <p>`/api/agent/run` выполняет deterministic runtime: retrieval, tool selection, eval gate, governance gate, human handoff.</p><p>Осталось: настоящие tool execution, retries, state machine.</p><span class="priority">P0</span>
+          </div>
+          <div class="row orange">
+            <span>Handoff</span><strong>Human review queue</strong><span class="badge orange">Частично</span>
+            <p>`GET /api/handoffs` и `PATCH /api/handoffs/:id` есть; UI умеет approve/escalate/block.</p><p>Осталось: notifications, SLA reminders, reviewer identity, comment threads.</p><span class="priority">P0</span>
           </div>
           <div class="row orange">
             <span>Governance</span><strong>Policy enforcement</strong><span class="badge orange">Частично</span>

@@ -16,6 +16,7 @@ The Postgres-ready draft is in `schema.sql`.
   "workspace": {},
   "playbooks": [],
   "runs": [],
+  "handoffs": [],
   "documents": [],
   "auditLog": []
 }
@@ -116,6 +117,41 @@ Runs are saved from Pilot Console.
     "trace": []
   },
   "totalRuns": 12
+}
+```
+
+## handoffs
+
+Handoffs are created by `POST /api/agent/run` whenever the runtime decides a human must review the output. They can be read with `GET /api/handoffs` and updated with `PATCH /api/handoffs/:id`.
+
+```json
+{
+  "id": "uuid",
+  "runId": "PX-AMLA-1234abcd",
+  "clientName": "Northstar Bank",
+  "workflowName": "AML Alert Briefing",
+  "gate": "Production pilot go-live",
+  "approver": "Compliance Lead",
+  "status": "Pending",
+  "priority": "Medium",
+  "reason": "Human review required",
+  "recommendation": "Prepare AML briefing and route it to Compliance Lead before action.",
+  "nextAction": "human_review_queue",
+  "confidence": 90,
+  "evidenceCount": 3,
+  "toolCount": 4,
+  "dueAt": "ISO timestamp",
+  "reviewerNotes": "",
+  "decision": null,
+  "audit": [
+    {
+      "event": "handoff.created",
+      "detail": "Created from PX-AMLA-1234abcd because Human review required.",
+      "createdAt": "ISO timestamp"
+    }
+  ],
+  "createdAt": "ISO timestamp",
+  "updatedAt": "ISO timestamp"
 }
 ```
 
@@ -292,6 +328,7 @@ When we graduate from JSON to Postgres, this maps cleanly into:
 - `tools`
 - `governance_policies`
 - `approval_gates`
+- `handoffs`
 - `eval_cases`
 - `pilot_runs`
 - `run_trace_events`

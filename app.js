@@ -12,6 +12,7 @@ const state = {
   project: null,
   playbooks: [],
   documents: [],
+  handoffs: [],
   playbookSearch: "",
   documentSearch: "",
   retrieval: { query: "", results: [] },
@@ -916,10 +917,11 @@ async function apiRequest(path, options = {}) {
 
 async function hydrateFromBackend() {
   try {
-    const [workspaceResponse, playbooksResponse, documentsResponse] = await Promise.all([
+    const [workspaceResponse, playbooksResponse, documentsResponse, handoffsResponse] = await Promise.all([
       apiRequest("/workspace"),
       apiRequest("/playbooks"),
       apiRequest("/documents"),
+      apiRequest("/handoffs"),
     ]);
     state.backendOnline = true;
 
@@ -949,6 +951,10 @@ async function hydrateFromBackend() {
     if (Array.isArray(documentsResponse.documents)) {
       state.documents = documentsResponse.documents.map(normalizeDocument);
       localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(state.documents));
+    }
+
+    if (Array.isArray(handoffsResponse.handoffs)) {
+      state.handoffs = handoffsResponse.handoffs.map(normalizeHandoff);
     }
 
     setStorageStatus("Backend synced", "green");
@@ -1081,6 +1087,31 @@ function normalizeDocument(document) {
     chunkCount: Number(document.chunkCount) || 0,
     chunks: Array.isArray(document.chunks) ? document.chunks : [],
     createdAt: document.createdAt || new Date().toISOString(),
+  };
+}
+
+function normalizeHandoff(handoff = {}) {
+  return {
+    id: handoff.id || `handoff-${Date.now()}`,
+    runId: handoff.runId || "manual-run",
+    clientName: handoff.clientName || state.project?.clientName || "Client",
+    workflowName: handoff.workflowName || state.project?.workflowName || "Workflow",
+    gate: handoff.gate || "Human review",
+    approver: handoff.approver || "Workflow owner",
+    status: handoff.status || "Pending",
+    priority: handoff.priority || "Medium",
+    reason: handoff.reason || "Human review required",
+    recommendation: handoff.recommendation || "Review the agent output before action.",
+    nextAction: handoff.nextAction || "human_review_queue",
+    confidence: Number(handoff.confidence) || 0,
+    evidenceCount: Number(handoff.evidenceCount) || 0,
+    toolCount: Number(handoff.toolCount) || 0,
+    dueAt: handoff.dueAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    reviewerNotes: handoff.reviewerNotes || "",
+    decision: handoff.decision || null,
+    createdAt: handoff.createdAt || new Date().toISOString(),
+    updatedAt: handoff.updatedAt || handoff.createdAt || new Date().toISOString(),
+    audit: Array.isArray(handoff.audit) ? handoff.audit : [],
   };
 }
 
@@ -2827,6 +2858,63 @@ function renderPilotRunConsole() {
   `;
 }
 
+function renderHandoffQueue() {
+  const board = document.querySelector("#handoff-board");
+  if (!board) return;
+  const handoffs = [...state.handoffs].sort((a, b) => {
+    const statusRank = { Pending: 0, Escalated: 1, Blocked: 2, Approved: 3 };
+    return (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9) || new Date(a.dueAt) - new Date(b.dueAt);
+  });
+  board.innerHTML = handoffs.length
+    ? handoffs
+        .map(
+          (handoff) => `
+            <article class="handoff-card ${escapeHtml(handoff.status.toLowerCase())}">
+              <div class="handoff-main">
+                <div class="handoff-topline">
+                  <span class="severity-pill ${escapeHtml(handoff.priority === "High" ? "High" : "Medium")}">${escapeHtml(handoff.priority)}</span>
+                  <span class="handoff-status">${escapeHtml(handoff.status)}</span>
+                  <span class="tag">Due ${escapeHtml(formatDate(handoff.dueAt))}</span>
+                </div>
+                <h3>${escapeHtml(handoff.gate)}</h3>
+                <p>${escapeHtml(handoff.recommendation)}</p>
+                <div class="handoff-meta">
+                  <span><strong>Approver:</strong> ${escapeHtml(handoff.approver)}</span>
+                  <span><strong>Run:</strong> ${escapeHtml(handoff.runId)}</span>
+                  <span><strong>Confidence:</strong> ${handoff.confidence}%</span>
+                  <span><strong>Evidence:</strong> ${handoff.evidenceCount} chunks / ${handoff.toolCount} tools</span>
+                </div>
+                ${handoff.reviewerNotes ? `<p class="handoff-notes">${escapeHtml(handoff.reviewerNotes)}</p>` : ""}
+              </div>
+              <div class="handoff-actions">
+                <button class="primary-button small" data-handoff-status="Approved" data-handoff-id="${escapeHtml(handoff.id)}" ${handoff.status === "Approved" ? "disabled" : ""}>Approve</button>
+                <button class="ghost-button small" data-handoff-status="Escalated" data-handoff-id="${escapeHtml(handoff.id)}" ${handoff.status === "Escalated" ? "disabled" : ""}>Escalate</button>
+                <button class="ghost-button small danger-action" data-handoff-status="Blocked" data-handoff-id="${escapeHtml(handoff.id)}" ${handoff.status === "Blocked" ? "disabled" : ""}>Block</button>
+              </div>
+            </article>
+          `,
+        )
+        .join("")
+    : `
+        <article class="handoff-card empty">
+          <h3>No handoffs yet</h3>
+          <p>Run the backend Agent Runtime. If the case requires review, PRAXIS will create a decision item here.</p>
+        </article>
+      `;
+
+  board.querySelectorAll("[data-handoff-status]").forEach((button) => {
+    button.addEventListener("click", () => updateHandoffStatus(button.dataset.handoffId, button.dataset.handoffStatus));
+  });
+}
+
+function formatDate(value) {
+  try {
+    return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  } catch {
+    return "TBD";
+  }
+}
+
 async function runAgentRuntime() {
   const button = document.querySelector("#run-agent-runtime");
   const caseInput = document.querySelector("#pilot-case-input").value.trim();
@@ -2838,6 +2926,10 @@ async function runAgentRuntime() {
       body: JSON.stringify({ project: state.project, caseInput }),
     });
     state.agentRuntimeRun = response.run;
+    if (response.handoff) {
+      const handoff = normalizeHandoff(response.handoff);
+      state.handoffs = [handoff, ...state.handoffs.filter((item) => item.id !== handoff.id)];
+    }
     state.backendOnline = true;
     setStorageStatus(`Agent run saved ${response.run.id.slice(0, 8)}`, response.run.requiresHumanReview ? "amber" : "green");
   } catch (error) {
@@ -2850,10 +2942,66 @@ async function runAgentRuntime() {
     button.disabled = false;
     button.textContent = "Run agent";
     renderPilotRunConsole();
+    renderHandoffQueue();
     renderDeploymentPlan();
     renderReadout();
     switchView("pilot");
   }
+}
+
+async function refreshHandoffs() {
+  try {
+    const response = await apiRequest("/handoffs");
+    state.handoffs = (response.handoffs || []).map(normalizeHandoff);
+    state.backendOnline = true;
+    setStorageStatus("Handoffs synced", "green");
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("Handoff backend unavailable", error);
+    setStorageStatus("Handoff queue local only", "amber");
+  }
+  renderHandoffQueue();
+}
+
+async function updateHandoffStatus(handoffId, status) {
+  const handoff = state.handoffs.find((item) => item.id === handoffId);
+  if (!handoff) return;
+  const reviewerNotes =
+    status === "Approved"
+      ? "Approved in PRAXIS handoff queue."
+      : status === "Blocked"
+        ? "Blocked in PRAXIS handoff queue."
+        : "Escalated for additional review.";
+  try {
+    const response = await apiRequest(`/handoffs/${encodeURIComponent(handoffId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, reviewerNotes }),
+    });
+    const updated = normalizeHandoff(response.handoff);
+    state.handoffs = state.handoffs.map((item) => (item.id === handoffId ? updated : item));
+    state.backendOnline = true;
+    setStorageStatus(`Handoff ${status.toLowerCase()}`, status === "Approved" ? "green" : "amber");
+  } catch (error) {
+    console.info("Could not update handoff in backend; updating local queue", error);
+    const now = new Date().toISOString();
+    state.handoffs = state.handoffs.map((item) =>
+      item.id === handoffId
+        ? {
+            ...item,
+            status,
+            decision: ["Approved", "Blocked"].includes(status) ? status.toLowerCase() : item.decision,
+            reviewerNotes,
+            updatedAt: now,
+            audit: [...item.audit, { event: "handoff.updated.local", detail: reviewerNotes, createdAt: now }],
+          }
+        : item,
+    );
+    setStorageStatus(`Handoff ${status.toLowerCase()} locally`, "amber");
+  }
+  renderHandoffQueue();
+  renderGovernance();
+  renderDeploymentPlan();
+  renderReadout();
 }
 
 async function savePilotRun() {
@@ -4069,6 +4217,7 @@ function renderAll(options = {}) {
   renderToolFabric();
   renderGovernance();
   renderPilotRunConsole();
+  renderHandoffQueue();
   renderEvals();
   renderDeploymentPlan();
   renderReadout();
@@ -4126,6 +4275,7 @@ document.querySelector("#refresh-pilot-run").addEventListener("click", async () 
 });
 document.querySelector("#run-agent-runtime").addEventListener("click", runAgentRuntime);
 document.querySelector("#save-pilot-run").addEventListener("click", savePilotRun);
+document.querySelector("#refresh-handoffs").addEventListener("click", refreshHandoffs);
 document.querySelector("#add-eval-case").addEventListener("click", addEvalCase);
 document.querySelector("#add-milestone").addEventListener("click", addMilestone);
 document.querySelector("#add-blocker").addEventListener("click", addBlocker);

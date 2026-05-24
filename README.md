@@ -49,6 +49,8 @@ The backend lives in `server.js` and exposes:
 - `PUT /api/playbooks`
 - `GET /api/runs`
 - `POST /api/runs`
+- `GET /api/handoffs`
+- `PATCH /api/handoffs/:id`
 - `GET /api/documents`
 - `POST /api/documents`
 - `POST /api/documents/search`
@@ -95,6 +97,7 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Manage governance policies, approval gates, audit trail requirements, and governance readiness.
 - Run a governance pre-flight check that flags blocked connectors, sensitive data, high-risk tools, pending approvals, and audit gaps.
 - Run the backend Agent Runtime from Pilot Console and inspect a saved case trace, evidence packet, decision boundary, approval route, latency, cost estimate, and audit payload.
+- Manage a Human Handoff Queue created by Agent Runtime, with approve, escalate, and block decisions saved back to the backend.
 - Calculate annual net value, monthly hours saved, payback, and conservative/base/upside scenarios.
 - Edit eval cases with input, expected output, category, severity, and last actual result.
 - Run a deterministic eval gate that reports pass, warning, failure, critical blockers, and pilot readiness.
