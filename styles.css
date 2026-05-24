@@ -2122,6 +2122,28 @@ p {
   margin-bottom: 14px;
 }
 
+.pilot-case-input {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.pilot-case-input textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 11px 12px;
+  resize: vertical;
+}
+
 .pilot-summary article,
 .evidence-card,
 .decision-card {

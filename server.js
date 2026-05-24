@@ -520,6 +520,32 @@ function scoreServerTool(tool) {
   return Math.min(100, score);
 }
 
+function scoreServerConnector(connector) {
+  let score = 20;
+  if (connector.name) score += 12;
+  if (connector.type) score += 10;
+  if (connector.owner && connector.owner !== "System owner") score += 10;
+  if (connector.access && connector.access !== "No access") score += 16;
+  if (connector.dataClass) score += 10;
+  if (connector.status && !["Blocked", "Needs approval"].includes(connector.status)) score += 16;
+  if (connector.refresh) score += 8;
+  if (connector.purpose) score += 8;
+  return Math.min(100, score);
+}
+
+function getServerConnectorHealth(project = {}) {
+  const connectors = Array.isArray(project.connectors) ? project.connectors : [];
+  const scores = connectors.map(scoreServerConnector);
+  const averageScore = Math.round(scores.reduce((sum, score) => sum + score, 0) / Math.max(1, scores.length));
+  const blocked = connectors.filter((connector) => connector.status === "Blocked" || connector.access === "No access").length;
+  return {
+    averageScore,
+    blocked,
+    total: connectors.length,
+    ready: averageScore >= 70 && blocked === 0,
+  };
+}
+
 function runServerEvalSuite(project = {}, documents = []) {
   const tools = Array.isArray(project.tools) ? project.tools : [];
   const evalCases = Array.isArray(project.evalCases) ? project.evalCases : [];
@@ -686,6 +712,155 @@ ${registrations || "// Add tools in PRAXIS Tool Fabric, then regenerate this fil
 const transport = new StdioServerTransport();
 await server.connect(transport);
 `;
+}
+
+function runAgentRuntime({ project = {}, documents = [], caseInput = "" } = {}) {
+  const workflowName = project.workflowName || "Unknown workflow";
+  const clientName = project.clientName || "Unknown client";
+  const connectors = Array.isArray(project.connectors) ? project.connectors : [];
+  const tools = Array.isArray(project.tools) ? project.tools : [];
+  const evalCases = Array.isArray(project.evalCases) ? project.evalCases : [];
+  const approvalGate =
+    project.governance?.approvals?.find((approval) => approval.status !== "Approved") ||
+    project.governance?.approvals?.[0] ||
+    { gate: "Human review", approver: "Workflow owner", status: "Pending", notes: "Default human handoff gate." };
+  const bottleneck =
+    (Array.isArray(project.processSteps) ? project.processSteps : []).find((step) =>
+      (step.tags || []).some((tag) => String(tag).toLowerCase() === "bottleneck"),
+    ) ||
+    (Array.isArray(project.processSteps) ? project.processSteps[0] : null) ||
+    { title: "Unmapped workflow step", system: "Unknown system", pain: "Process map is incomplete." };
+
+  const startedAt = Date.now();
+  const query = [caseInput, workflowName, project.businessProblem, project.successMetric].filter(Boolean).join(" ");
+  const retrievalResults = retrieveDocumentChunks(documents, query, 5);
+  const connectorHealth = getServerConnectorHealth(project);
+  const toolScores = tools.map((tool) => ({ tool, score: scoreServerTool(tool) }));
+  const callableTools = toolScores.filter((item) => item.score >= 65).slice(0, 5).map((item) => item.tool);
+  const toolAverage = Math.round(toolScores.reduce((sum, item) => sum + item.score, 0) / Math.max(1, toolScores.length));
+  const governance = runGovernanceChecks(project);
+  const evalResult = runServerEvalSuite(project, documents);
+  const retrievalScore = documents.length ? (retrievalResults.length ? 92 : 45) : 62;
+  const confidence = Math.max(
+    25,
+    Math.min(
+      97,
+      Math.round(
+        connectorHealth.averageScore * 0.22 +
+          toolAverage * 0.2 +
+          governance.score * 0.22 +
+          evalResult.summary.gateScore * 0.18 +
+          retrievalScore * 0.18,
+      ),
+    ),
+  );
+  const failedCritical = evalCases.some((test) => test.severity === "Critical" && test.result === "fail");
+  const highRiskTools = callableTools.filter((tool) => tool.risk === "High");
+  const requiresHumanReview = !governance.passed || !evalResult.summary.passed || failedCritical || confidence < 82 || highRiskTools.length > 0;
+  const outcome = failedCritical
+    ? "Blocked by critical eval"
+    : !governance.passed
+      ? "Blocked by governance"
+      : !evalResult.summary.passed
+        ? "Sandbox only"
+        : requiresHumanReview
+          ? "Human review required"
+          : "Autonomous draft ready";
+  const latencyMs = 420 + retrievalResults.length * 55 + callableTools.length * 140 + evalCases.length * 65;
+  const estimatedCostUsd = Number((0.02 + retrievalResults.length * 0.006 + callableTools.length * 0.018 + evalCases.length * 0.004).toFixed(3));
+  const runId = `PX-${workflowName.replace(/[^A-Z0-9]/gi, "").slice(0, 4).toUpperCase()}-${randomUUID().slice(0, 8)}`;
+
+  const trace = [
+    {
+      layer: "Trigger",
+      title: "Runtime received case",
+      detail: caseInput || `New ${workflowName} case entered PRAXIS Agent Runtime.`,
+      status: "Logged",
+      latencyMs: 35,
+    },
+    {
+      layer: "L1",
+      title: "Retrieved context",
+      detail: retrievalResults.length
+        ? `${retrievalResults.length} document chunk${retrievalResults.length === 1 ? "" : "s"} matched the case.`
+        : "No document chunks matched. Runtime falls back to structured workspace context.",
+      status: retrievalResults.length ? "Evidence found" : "Sparse context",
+      latencyMs: 85 + retrievalResults.length * 20,
+    },
+    {
+      layer: "L2",
+      title: "Prepared tool calls",
+      detail: `${callableTools.length} tool${callableTools.length === 1 ? "" : "s"} are callable above readiness threshold. ${highRiskTools.length} are high-risk.`,
+      status: callableTools.length ? "Callable" : "No tools",
+      latencyMs: 90 + callableTools.length * 35,
+    },
+    {
+      layer: "L3",
+      title: "Generated recommendation",
+      detail: `Runtime produced a ${requiresHumanReview ? "reviewable draft" : "controlled action draft"} with ${confidence}% confidence.`,
+      status: `${confidence}% confidence`,
+      latencyMs: 130,
+    },
+    {
+      layer: "L4",
+      title: "Checked eval gate",
+      detail: `Eval gate score ${evalResult.summary.gateScore}; retrieval coverage ${evalResult.summary.retrievalCoverage}%.`,
+      status: evalResult.summary.passed ? "Passed" : "Needs work",
+      latencyMs: 65 + evalCases.length * 25,
+    },
+    {
+      layer: "L5",
+      title: "Checked governance",
+      detail: `${governance.findings.length} governance finding${governance.findings.length === 1 ? "" : "s"}; score ${governance.score}.`,
+      status: governance.passed ? "Passed" : "Blocked",
+      latencyMs: 55,
+    },
+    {
+      layer: "Handoff",
+      title: requiresHumanReview ? "Routed to human" : "Ready for controlled automation",
+      detail: requiresHumanReview
+        ? `${approvalGate.gate} goes to ${approvalGate.approver}.`
+        : "No blocking controls detected. Runtime can prepare controlled downstream action.",
+      status: requiresHumanReview ? "Human review" : "Ready",
+      latencyMs: 40,
+    },
+  ];
+
+  return {
+    id: runId,
+    createdAt: new Date(startedAt).toISOString(),
+    clientName,
+    workflowName,
+    caseInput,
+    outcome,
+    confidence,
+    latencyMs,
+    estimatedCostUsd,
+    requiresHumanReview,
+    bottleneck,
+    readableConnectors: connectors.filter((connector) => connector.status !== "Blocked").slice(0, 5),
+    callableTools,
+    approvalGate,
+    connectorHealth,
+    toolAverage,
+    governance,
+    evalSummary: evalResult.summary,
+    retrievalResults,
+    decision: {
+      recommendation: requiresHumanReview
+        ? `Prepare ${workflowName} briefing and route it to ${approvalGate.approver} before action.`
+        : `Prepare ${workflowName} briefing and proceed to controlled action draft.`,
+      nextAction: requiresHumanReview ? "human_review_queue" : "controlled_action_ready",
+      reason: outcome,
+    },
+    audit: {
+      model: hasLlmConfig() ? process.env.LLM_MODEL : "deterministic-runtime-v1",
+      events: project.governance?.auditEvents || [],
+      startedAt: new Date(startedAt).toISOString(),
+      completedAt: new Date(startedAt + latencyMs).toISOString(),
+    },
+    trace,
+  };
 }
 
 function runGovernanceChecks(project = {}) {
@@ -905,6 +1080,45 @@ async function handleApi(req, res, url) {
     );
     const saved = await writeDb(nextDb);
     sendJson(res, 200, { ok: true, deleted: Boolean(document), totalDocuments: saved.documents.length });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/agent/run") {
+    const body = await readJsonBody(req);
+    const project = body.project || db.workspace?.project || {};
+    const run = runAgentRuntime({
+      project,
+      documents: Array.isArray(db.documents) ? db.documents : [],
+      caseInput: body.caseInput || "",
+    });
+    const nextDb = appendAudit(
+      {
+        ...db,
+        runs: [
+          {
+            id: run.id,
+            createdAt: run.createdAt,
+            clientName: run.clientName,
+            workflowName: run.workflowName,
+            outcome: run.outcome,
+            confidence: run.confidence,
+            trace: run.trace,
+            payload: run,
+          },
+          ...(Array.isArray(db.runs) ? db.runs : []),
+        ].slice(0, 500),
+      },
+      "agent.run",
+      {
+        runId: run.id,
+        workflowName: run.workflowName,
+        outcome: run.outcome,
+        confidence: run.confidence,
+        requiresHumanReview: run.requiresHumanReview,
+      },
+    );
+    const saved = await writeDb(nextDb);
+    sendJson(res, 201, { ok: true, run, totalRuns: saved.runs.length });
     return;
   }
 

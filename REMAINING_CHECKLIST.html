@@ -267,7 +267,7 @@
           <p class="lead">
             Это рабочий чеклист после текущего состояния MVP. Сейчас у нас есть local full-stack prototype:
             frontend, backend, JSON database, AI Intake endpoint, optional LLM adapter, Eval Runner, Pilot Runs,
-            Knowledge Base, Retrieval, OpenAPI import, MCP scaffold и Governance checks.
+            Knowledge Base, Retrieval, OpenAPI import, MCP scaffold, Governance checks и первый backend Agent Runtime.
             Дальше нужно превращать это в enterprise-grade FDE Operating System.
           </p>
         </div>
@@ -280,8 +280,8 @@
 
       <section class="stats">
         <article class="stat"><span>Готово</span><strong>9</strong></article>
-        <article class="stat"><span>Частично</span><strong>9</strong></article>
-        <article class="stat"><span>Не начато</span><strong>7</strong></article>
+        <article class="stat"><span>Частично</span><strong>10</strong></article>
+        <article class="stat"><span>Не начато</span><strong>6</strong></article>
         <article class="stat"><span>Следующий фокус</span><strong>P0</strong></article>
       </section>
 
@@ -356,11 +356,11 @@
           </div>
           <div class="row orange">
             <span>Pilot</span><strong>Run trace storage</strong><span class="badge orange">Частично</span>
-            <p>Pilot runs сохраняются в backend.</p><p>Сделать реальные trace events, latency, cost, model/tool calls, evidence links.</p><span class="priority">P1</span>
+            <p>Pilot runs сохраняются в backend, Agent Runtime пишет trace, latency, cost estimate, evidence links.</p><p>Осталось: реальные model/tool call payloads и production telemetry.</p><span class="priority">P1</span>
           </div>
-          <div class="row red">
-            <span>Runtime</span><strong>Actual agent execution</strong><span class="badge red">Не начато</span>
-            <p>Сейчас Pilot Console симулирует выполнение.</p><p>Добавить agent runner, tool execution, approvals, retries, state machine.</p><span class="priority">P0</span>
+          <div class="row orange">
+            <span>Runtime</span><strong>Actual agent execution</strong><span class="badge orange">Частично</span>
+            <p>`/api/agent/run` выполняет deterministic runtime: retrieval, tool selection, eval gate, governance gate, human handoff.</p><p>Осталось: настоящие tool execution, approvals queue, retries, state machine.</p><span class="priority">P0</span>
           </div>
           <div class="row orange">
             <span>Governance</span><strong>Policy enforcement</strong><span class="badge orange">Частично</span>

@@ -710,10 +710,15 @@
               </div>
               <div class="panel-actions">
                 <button class="ghost-button small" id="refresh-pilot-run">Refresh trace</button>
+                <button class="primary-button small" id="run-agent-runtime">Run agent</button>
                 <button class="ghost-button small" id="save-pilot-run">Save run</button>
                 <span class="status-pill" id="pilot-health">Checking</span>
               </div>
             </div>
+            <label class="pilot-case-input">
+              Case input
+              <textarea id="pilot-case-input" rows="4" spellcheck="false">New high-risk case entered the workflow. The analyst needs KYC, policy, transaction, and approval context before making a recommendation.</textarea>
+            </label>
             <div class="pilot-summary" id="pilot-summary"></div>
             <div class="pilot-trace" id="pilot-trace"></div>
           </article>

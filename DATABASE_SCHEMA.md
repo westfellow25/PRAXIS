@@ -90,6 +90,35 @@ Runs are saved from Pilot Console.
 }
 ```
 
+## agent runtime response
+
+`POST /api/agent/run` executes the first deterministic backend Agent Runtime. It retrieves document evidence, selects callable tools, checks evals and governance, decides whether human review is required, estimates latency/cost, stores the run, and returns the full trace.
+
+```json
+{
+  "ok": true,
+  "run": {
+    "id": "PX-AML-1234abcd",
+    "clientName": "Northstar Bank",
+    "workflowName": "AML Alert Briefing",
+    "outcome": "Human review required",
+    "confidence": 82,
+    "latencyMs": 1140,
+    "estimatedCostUsd": 0.086,
+    "requiresHumanReview": true,
+    "retrievalResults": [],
+    "callableTools": [],
+    "decision": {
+      "recommendation": "Prepare AML Alert Briefing and route it to Compliance Lead before action.",
+      "nextAction": "human_review_queue",
+      "reason": "Human review required"
+    },
+    "trace": []
+  },
+  "totalRuns": 12
+}
+```
+
 ## documents
 
 Documents are ingested from the Knowledge Base screen through `POST /api/documents`.

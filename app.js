@@ -17,6 +17,7 @@ const state = {
   retrieval: { query: "", results: [] },
   governanceCheck: null,
   mcpServerCode: "",
+  agentRuntimeRun: null,
   backendOnline: false,
 };
 
@@ -2706,8 +2707,24 @@ function buildPilotRun() {
   };
 }
 
+function normalizeAgentRuntimeRun(run) {
+  return {
+    ...run,
+    caseId: run.id || run.caseId,
+    bottleneck: run.bottleneck || state.project.processSteps[0],
+    readableConnectors: run.readableConnectors || [],
+    callableTools: run.callableTools || [],
+    approvalGate: run.approvalGate || state.project.governance.approvals[0],
+    connectorHealth: run.connectorHealth || getConnectorHealth(),
+    toolAverage: run.toolAverage || 0,
+    governance: run.governance || getGovernanceHealth(),
+    retrievalResults: run.retrievalResults || [],
+    trace: run.trace || [],
+  };
+}
+
 function renderPilotRunConsole() {
-  const run = buildPilotRun();
+  const run = state.agentRuntimeRun ? normalizeAgentRuntimeRun(state.agentRuntimeRun) : buildPilotRun();
   const pilotReady = run.connectorHealth.ready && run.toolAverage >= 75 && run.governance.score >= 70;
   document.querySelector("#pilot-health").textContent = pilotReady ? "Runnable" : "Guarded";
   document.querySelector("#pilot-health").className = `status-pill ${pilotReady ? "green" : "amber"}`;
@@ -2729,6 +2746,16 @@ function renderPilotRunConsole() {
       <span>Human gate</span>
       <strong>${escapeHtml(run.approvalGate.gate)}</strong>
     </article>
+    ${
+      run.latencyMs
+        ? `
+          <article>
+            <span>Runtime</span>
+            <strong>${run.latencyMs}ms / $${Number(run.estimatedCostUsd || 0).toFixed(3)}</strong>
+          </article>
+        `
+        : ""
+    }
   `;
 
   document.querySelector("#pilot-trace").innerHTML = run.trace
@@ -2764,7 +2791,11 @@ function renderPilotRunConsole() {
     </article>
     <article class="evidence-card">
       <strong>Tool outputs</strong>
-      <p>${run.callableTools.map((tool) => `${tool.name}: ${tool.code}`).join("; ") || "No callable tools are ready yet."}</p>
+      <p>${
+        run.callableTools
+          .map((tool) => `${tool.name}: ${tool.code}${tool.risk ? ` (${tool.risk} risk)` : ""}`)
+          .join("; ") || "No callable tools are ready yet."
+      }</p>
     </article>
     <article class="evidence-card">
       <strong>Workflow bottleneck</strong>
@@ -2775,7 +2806,11 @@ function renderPilotRunConsole() {
   document.querySelector("#decision-audit").innerHTML = `
     <article class="decision-card">
       <strong>Decision boundary</strong>
-      <p>The agent prepares work. A human still owns regulated, high-risk, or irreversible decisions.</p>
+      <p>${
+        run.decision?.recommendation
+          ? escapeHtml(run.decision.recommendation)
+          : "The agent prepares work. A human still owns regulated, high-risk, or irreversible decisions."
+      }</p>
     </article>
     <article class="decision-card">
       <strong>Approval route</strong>
@@ -2783,13 +2818,50 @@ function renderPilotRunConsole() {
     </article>
     <article class="decision-card">
       <strong>Audit payload</strong>
-      <p>${state.project.governance.auditEvents.map((event) => escapeHtml(event)).join("; ")}.</p>
+      <p>${(run.audit?.events || state.project.governance.auditEvents).map((event) => escapeHtml(event)).join("; ")}.</p>
+    </article>
+    <article class="decision-card">
+      <strong>Runtime gate</strong>
+      <p>${run.requiresHumanReview ? "Human review required before downstream action." : "No blocking review gate for controlled action draft."}</p>
     </article>
   `;
 }
 
+async function runAgentRuntime() {
+  const button = document.querySelector("#run-agent-runtime");
+  const caseInput = document.querySelector("#pilot-case-input").value.trim();
+  button.disabled = true;
+  button.textContent = "Running";
+  try {
+    const response = await apiRequest("/agent/run", {
+      method: "POST",
+      body: JSON.stringify({ project: state.project, caseInput }),
+    });
+    state.agentRuntimeRun = response.run;
+    state.backendOnline = true;
+    setStorageStatus(`Agent run saved ${response.run.id.slice(0, 8)}`, response.run.requiresHumanReview ? "amber" : "green");
+  } catch (error) {
+    console.info("Backend agent runtime unavailable; using simulated trace", error);
+    state.agentRuntimeRun = null;
+    state.backendOnline = false;
+    setStorageStatus("Backend runtime unavailable", "amber");
+    await refreshRetrievalEvidence();
+  } finally {
+    button.disabled = false;
+    button.textContent = "Run agent";
+    renderPilotRunConsole();
+    renderDeploymentPlan();
+    renderReadout();
+    switchView("pilot");
+  }
+}
+
 async function savePilotRun() {
-  const run = buildPilotRun();
+  const run = state.agentRuntimeRun ? normalizeAgentRuntimeRun(state.agentRuntimeRun) : buildPilotRun();
+  if (state.agentRuntimeRun?.id) {
+    setStorageStatus(`Agent run already saved ${state.agentRuntimeRun.id.slice(0, 8)}`, "green");
+    return;
+  }
   try {
     const response = await apiRequest("/runs", {
       method: "POST",
@@ -4048,7 +4120,11 @@ document.querySelector("#import-openapi").addEventListener("click", importOpenAp
 document.querySelector("#add-policy").addEventListener("click", addPolicy);
 document.querySelector("#add-approval").addEventListener("click", addApproval);
 document.querySelector("#run-governance-check").addEventListener("click", runGovernanceCheck);
-document.querySelector("#refresh-pilot-run").addEventListener("click", refreshRetrievalEvidence);
+document.querySelector("#refresh-pilot-run").addEventListener("click", async () => {
+  state.agentRuntimeRun = null;
+  await refreshRetrievalEvidence();
+});
+document.querySelector("#run-agent-runtime").addEventListener("click", runAgentRuntime);
 document.querySelector("#save-pilot-run").addEventListener("click", savePilotRun);
 document.querySelector("#add-eval-case").addEventListener("click", addEvalCase);
 document.querySelector("#add-milestone").addEventListener("click", addMilestone);

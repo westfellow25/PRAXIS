@@ -54,6 +54,7 @@ The backend lives in `server.js` and exposes:
 - `POST /api/documents/search`
 - `POST /api/retrieval/query`
 - `DELETE /api/documents/:id`
+- `POST /api/agent/run`
 - `POST /api/intake`
 - `POST /api/intake/workspace`
 - `POST /api/evals/run`
@@ -93,7 +94,7 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Generate an MCP-style tool manifest preview.
 - Manage governance policies, approval gates, audit trail requirements, and governance readiness.
 - Run a governance pre-flight check that flags blocked connectors, sensitive data, high-risk tools, pending approvals, and audit gaps.
-- Use the Pilot Run Console to inspect a full case trace, evidence packet, decision boundary, approval route, and audit payload.
+- Run the backend Agent Runtime from Pilot Console and inspect a saved case trace, evidence packet, decision boundary, approval route, latency, cost estimate, and audit payload.
 - Calculate annual net value, monthly hours saved, payback, and conservative/base/upside scenarios.
 - Edit eval cases with input, expected output, category, severity, and last actual result.
 - Run a deterministic eval gate that reports pass, warning, failure, critical blockers, and pilot readiness.

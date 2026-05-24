@@ -92,12 +92,12 @@
 |---|---|---|---|---|
 | [x] | Visual Agent Builder | Trigger -> Context -> Tools -> Reasoning -> Human Review -> Action -> Logging | Готово | Есть Agent Builder |
 | [x] | Human-in-loop design | Человек утверждает risky cases | Готово | Отражено в workflow/governance |
-| [x] | Pilot Run Console | Один кейс проходит через весь stack | Готово | Есть trace, evidence, decision, audit |
+| [x] | Pilot Run Console | Один кейс проходит через весь stack | Готово | Есть backend Agent Runtime trace, evidence, decision, audit |
 | [ ] | Discovery Agent | Помогает FDE понять компанию | Частично | Backend intake engine уже строит workspace patch, но пока без настоящего LLM |
 | [ ] | Process Analyst Agent | Автоматически строит process map | Не начато | Нужен LLM |
 | [ ] | Data Readiness Agent | Анализирует качество данных | Не начато | Нужны connectors + evals |
 | [ ] | API Readiness Agent | Проверяет API пригодность | Не начато | Нужен OpenAPI/API testing |
-| [ ] | Workflow Agent | Реально выполняет задачу | Не начато | Пока симуляция |
+| [x] | Workflow Agent | Реально выполняет задачу | Частично | `/api/agent/run` выполняет deterministic runtime: retrieval, tools, evals, governance, decision, audit; настоящие tool calls еще не подключены |
 | [x] | Compliance Agent | Реально проверяет политики | Частично | `/api/governance/check` делает pre-flight findings; runtime enforcement еще не готов |
 | [ ] | Human Handoff Agent | Очередь ручных решений | Не начато | Нужен backend/workflow queue |
 
@@ -109,7 +109,7 @@
 | [x] | Test case editor | Input, expected, category, severity | Готово | Редактируется |
 | [x] | Deterministic eval gate | Pass/warn/fail simulation | Готово | Есть run evals |
 | [x] | Critical blocker logic | Critical fail блокирует pilot | Готово | Есть logic |
-| [x] | Audit trace in Pilot Console | Что было сделано и записано | Частично | Есть симуляция trace |
+| [x] | Audit trace in Pilot Console | Что было сделано и записано | Частично | Backend Agent Runtime сохраняет trace; реальные model/tool call payloads еще не подключены |
 | [ ] | Golden datasets | Реальные historical cases | Не начато | Нужны данные клиента |
 | [x] | Retrieval accuracy evals | Проверка, нашёл ли агент правильные документы | Частично | Backend eval runner учитывает retrieval evidence coverage; golden datasets еще не готовы |
 | [ ] | Recommendation match evals | Сравнение с human decisions | Не начато | Нужна база прошлых решений |
@@ -142,7 +142,7 @@
 | [x] | Tool readiness | API readiness + blockers | Готово | Есть Tool Fabric + Connectors |
 | [x] | Построение агента | Workflow AML Alert Briefing Agent | Готово | Есть Agent Builder |
 | [x] | Evals | Historic-case eval plan | Частично | Есть eval suite, но без реальных 500 кейсов |
-| [x] | Pilot | 5 analysts, time saved, correctness, human review | Частично | Есть Pilot Console и Value Model, без реальных пользователей |
+| [x] | Pilot | 5 analysts, time saved, correctness, human review | Частично | Есть backend Agent Runtime, Pilot Console и Value Model, без реальных пользователей |
 | [x] | Executive readout | Презентационный summary для VP/C-level | Готово | Есть экран |
 | [x] | Generalize into playbook | AML Alert Briefing Playbook | Готово | Есть Playbooks |
 
@@ -188,7 +188,7 @@
 | P0 | [x] | Добавить backend | Локальный Node backend готов без внешних зависимостей |
 | P0 | [x] | Добавить database schema | JSON schema готова в `DATABASE_SCHEMA.md`; локальная БД `data/praxis-db.json` |
 | P0 | [x] | Подключить реальный LLM intake | Частично: backend поддерживает OpenAI-compatible `LLM_ENDPOINT`/`LLM_MODEL`/`LLM_API_KEY`, но без ключа работает deterministic fallback |
-| P1 | [x] | Реальный run trace storage | Pilot Console сохраняет runs в локальный backend через `POST /api/runs` |
+| P1 | [x] | Реальный run trace storage | Pilot Console сохраняет ручные runs через `POST /api/runs`; Agent Runtime сохраняет runs через `POST /api/agent/run` |
 | P1 | [ ] | Реальный eval runner | Проверять агента на datasets |
 | P1 | [x] | OpenAPI/MCP import | OpenAPI JSON превращается в Tool Fabric rows; MCP server scaffold генерируется через `/api/mcp/generate` |
 | P1 | [ ] | Auth/permissions model | Enterprise-grade trust |
