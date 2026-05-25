@@ -66,6 +66,7 @@ The backend lives in `server.js` and exposes:
 - `POST /api/mcp/generate`
 - `POST /api/tools/sandbox`
 - `POST /api/governance/check`
+- `POST /api/governance/enforce`
 
 The local database is `data/praxis-db.json`.
 
@@ -100,6 +101,7 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Generate an MCP-style tool manifest preview.
 - Manage governance policies, approval gates, audit trail requirements, and governance readiness.
 - Run a governance pre-flight check that flags blocked connectors, sensitive data, high-risk tools, pending approvals, and audit gaps.
+- Run runtime governance enforcement that returns allow/approval/block decisions, masks sensitive input, builds a tool secrets manifest, and records the enforcement audit event.
 - Run the backend Agent Runtime from Pilot Console and inspect a saved case trace, evidence packet, decision boundary, approval route, latency, cost estimate, and audit payload.
 - Manage a Human Handoff Queue created by Agent Runtime, with approve, escalate, block, overdue, due-soon, and escalated SLA reminders saved back to the backend.
 - Calculate annual net value, monthly hours saved, payback, conservative/base/upside scenarios, and runtime telemetry from saved agent runs.

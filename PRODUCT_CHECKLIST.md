@@ -38,13 +38,13 @@
 | Галочка | Функция | Что должно быть | Статус | Комментарий |
 |---|---|---|---|---|
 | [x] | Access awareness in UI | PRAXIS показывает access mode и blocked sources | Частично | Есть модель доступа на уровне connector/tool |
-| [x] | Human approval flags | Действия с риском требуют approval | Частично | Есть governance approvals и tool auth |
-| [x] | Audit trail requirements | Что надо логировать в каждом run | Частично | Есть audit events |
+| [x] | Human approval flags | Действия с риском требуют approval | Готово для MVP | Governance approvals, tool auth и runtime decision `approval_required` уже связаны |
+| [x] | Audit trail requirements | Что надо логировать в каждом run | Готово для MVP | Есть audit events, `/api/governance/enforce` и runtime trace |
 | [ ] | SSO | Enterprise login через Okta/Azure AD/Google | Не начато | Нужен backend |
 | [ ] | SCIM | Sync users/groups | Не начато | Нужен enterprise identity layer |
 | [ ] | RBAC/ABAC | Реальные роли и политики доступа | Не начато | Сейчас только вручную описывается |
-| [ ] | OPA/policy engine | Машинное enforcement правил | Не начато | Пока нет runtime enforcement |
-| [ ] | Secrets vault | Хранение API keys/secrets | Не начато | Нужен backend/infrastructure |
+| [x] | OPA/policy engine | Машинное enforcement правил | Готово для MVP | `/api/governance/enforce` делает allow/approval/block, policy decisions, tool decisions и audit |
+| [x] | Secrets vault | Хранение API keys/secrets | Готово для MVP | Есть secrets manifest и env-ref checks; реальный Vault/KMS нужен в hosted версии |
 
 ## 4. Context Graph
 
@@ -98,7 +98,7 @@
 | [ ] | Data Readiness Agent | Анализирует качество данных | Не начато | Нужны connectors + evals |
 | [ ] | API Readiness Agent | Проверяет API пригодность | Не начато | Нужен OpenAPI/API testing |
 | [x] | Workflow Agent | Реально выполняет задачу | Частично | `/api/agent/run` выполняет deterministic runtime: retrieval, tools, evals, governance, decision, audit; настоящие tool calls еще не подключены |
-| [x] | Compliance Agent | Реально проверяет политики | Частично | `/api/governance/check` делает pre-flight findings; runtime enforcement еще не готов |
+| [x] | Compliance Agent | Реально проверяет политики | Готово для MVP | `/api/governance/check` делает pre-flight findings, `/api/governance/enforce` применяет runtime masking, approvals, tool policy и secrets manifest |
 | [x] | Human Handoff Agent | Очередь ручных решений | Готово для MVP | Agent Runtime создаёт handoff queue item; UI поддерживает approve/escalate/block; SLA alerts показывают overdue/due soon/escalated; external notifications позже |
 
 ## 8. Evals & Observability
@@ -175,7 +175,7 @@
 | [x] | Agent-ready tools | Безопасные API для агентов | Готово для MVP | Есть design layer, OpenAPI import, MCP scaffold, sandbox dry-run и failure catalog; production API execution позже |
 | [x] | Eval library | Библиотека тестов по индустриям | Частично | Есть templates, нет реальной базы |
 | [x] | Playbook marketplace | Повторяемые deployment-шаблоны | Частично | Есть local library, нет marketplace |
-| [x] | Governance | Безопасный enterprise deployment | Частично | Есть UI, approvals, audit checklist и pre-flight enforcement check; нет runtime OPA/secrets/masking |
+| [x] | Governance | Безопасный enterprise deployment | Готово для MVP | Есть UI, approvals, audit checklist, pre-flight check, runtime enforcement, masking и secrets manifest; production Vault/KMS позже |
 | [ ] | Cross-customer learning | Каждый deployment улучшает платформу | Не начато | Нужна hosted платформа и data model |
 | [ ] | Integration breadth | Много реальных connectors | Не начато | Нужна интеграционная команда |
 | [ ] | Switching cost | Клиент хранит deployment memory в PRAXIS | Не начато | Появится после backend/workspaces |

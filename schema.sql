@@ -127,6 +127,19 @@ create table approval_gates (
   created_at timestamptz not null default now()
 );
 
+create table governance_enforcement_runs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references workspaces(id) on delete set null,
+  decision text not null,
+  masked_input text,
+  redactions jsonb not null default '[]'::jsonb,
+  findings jsonb not null default '[]'::jsonb,
+  policy_decisions jsonb not null default '[]'::jsonb,
+  tool_decisions jsonb not null default '[]'::jsonb,
+  secrets_manifest jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table eval_cases (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces(id) on delete cascade,
@@ -213,6 +226,7 @@ create index connectors_workspace_idx on connectors(workspace_id);
 create index documents_workspace_idx on documents(workspace_id);
 create index tools_workspace_idx on tools(workspace_id);
 create index tool_sandbox_runs_workspace_idx on tool_sandbox_runs(workspace_id);
+create index governance_enforcement_workspace_idx on governance_enforcement_runs(workspace_id);
 create index eval_cases_workspace_idx on eval_cases(workspace_id);
 create index pilot_runs_workspace_idx on pilot_runs(workspace_id);
 create index handoffs_workspace_idx on handoffs(workspace_id);

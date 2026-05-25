@@ -837,6 +837,11 @@ function runAgentRuntime({ project = {}, documents = [], caseInput = "" } = {}) 
   const toolAverage = Math.round(toolScores.reduce((sum, item) => sum + item.score, 0) / Math.max(1, toolScores.length));
   const governance = runGovernanceChecks(project);
   const evalResult = runServerEvalSuite(project, documents);
+  const governanceEnforcement = enforceGovernance(project, {
+    input: caseInput,
+    tools: callableTools,
+    retrievalResults,
+  });
   const retrievalScore = documents.length ? (retrievalResults.length ? 92 : 45) : 62;
   const confidence = Math.max(
     25,
@@ -853,10 +858,13 @@ function runAgentRuntime({ project = {}, documents = [], caseInput = "" } = {}) 
   );
   const failedCritical = evalCases.some((test) => test.severity === "Critical" && test.result === "fail");
   const highRiskTools = callableTools.filter((tool) => tool.risk === "High");
-  const requiresHumanReview = !governance.passed || !evalResult.summary.passed || failedCritical || confidence < 82 || highRiskTools.length > 0;
+  const requiresHumanReview =
+    governanceEnforcement.decision !== "allow" || !governance.passed || !evalResult.summary.passed || failedCritical || confidence < 82 || highRiskTools.length > 0;
   const outcome = failedCritical
     ? "Blocked by critical eval"
-    : !governance.passed
+    : governanceEnforcement.decision === "blocked"
+      ? "Blocked by runtime governance"
+      : !governance.passed
       ? "Blocked by governance"
       : !evalResult.summary.passed
         ? "Sandbox only"
@@ -907,9 +915,9 @@ function runAgentRuntime({ project = {}, documents = [], caseInput = "" } = {}) 
     },
     {
       layer: "L5",
-      title: "Checked governance",
-      detail: `${governance.findings.length} governance finding${governance.findings.length === 1 ? "" : "s"}; score ${governance.score}.`,
-      status: governance.passed ? "Passed" : "Blocked",
+      title: "Enforced governance",
+      detail: `${governanceEnforcement.decision}; ${governanceEnforcement.redactions.length} redaction${governanceEnforcement.redactions.length === 1 ? "" : "s"}; ${governanceEnforcement.findings.length} finding${governanceEnforcement.findings.length === 1 ? "" : "s"}.`,
+      status: governanceEnforcement.decision === "allow" ? "Allow" : governanceEnforcement.decision === "approval_required" ? "Approval" : "Blocked",
       latencyMs: 55,
     },
     {
@@ -941,6 +949,7 @@ function runAgentRuntime({ project = {}, documents = [], caseInput = "" } = {}) 
     connectorHealth,
     toolAverage,
     governance,
+    governanceEnforcement,
     evalSummary: evalResult.summary,
     retrievalResults,
     decision: {
@@ -1230,6 +1239,129 @@ function runGovernanceChecks(project = {}) {
     passed: score >= 80 && !findings.some((finding) => finding.severity === "High"),
     findings,
     checkedAt: new Date().toISOString(),
+  };
+}
+
+function maskSensitiveText(text = "") {
+  const input = String(text || "");
+  const redactions = [];
+  const patterns = [
+    { type: "email", regex: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, token: "[EMAIL]" },
+    { type: "ssn", regex: /\b\d{3}-\d{2}-\d{4}\b/g, token: "[SSN]" },
+    { type: "card", regex: /\b(?:\d[ -]*?){13,16}\b/g, token: "[CARD]" },
+    { type: "account", regex: /\b(?:acct|account|customer|case)[\s:#-]*[A-Z0-9]{6,}\b/gi, token: "[ID]" },
+    { type: "phone", regex: /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, token: "[PHONE]" },
+  ];
+  let masked = input;
+  patterns.forEach((pattern) => {
+    masked = masked.replace(pattern.regex, (match) => {
+      redactions.push({ type: pattern.type, chars: match.length });
+      return pattern.token;
+    });
+  });
+  return { originalLength: input.length, masked, redactions };
+}
+
+function getSecretRefForTool(tool = {}) {
+  return `PRAXIS_SECRET_${toToolIdentifier(tool.name || tool.code || "tool").toUpperCase()}`;
+}
+
+function enforceGovernance(project = {}, payload = {}) {
+  const governanceCheck = runGovernanceChecks(project);
+  const inputMask = maskSensitiveText(payload.input || "");
+  const tools = Array.isArray(payload.tools) ? payload.tools : Array.isArray(project.tools) ? project.tools : [];
+  const connectors = Array.isArray(project.connectors) ? project.connectors : [];
+  const approvals = Array.isArray(project.governance?.approvals) ? project.governance.approvals : [];
+  const policies = Array.isArray(project.governance?.policies) ? project.governance.policies : [];
+  const auditEvents = Array.isArray(project.governance?.auditEvents) ? project.governance.auditEvents : [];
+  const findings = [...governanceCheck.findings];
+
+  const policyDecisions = policies.map((policy) => {
+    const needsApproval = ["High", "Critical"].includes(policy.severity) && !["Approved", "Required"].includes(policy.status);
+    const blocked = policy.status === "Blocked";
+    return {
+      area: policy.area,
+      owner: policy.owner,
+      severity: policy.severity,
+      status: policy.status,
+      decision: blocked ? "block" : needsApproval ? "approval_required" : "allow",
+      rule: policy.rule,
+    };
+  });
+
+  connectors.forEach((connector) => {
+    if (["PII", "Regulated", "Financial"].includes(connector.dataClass) && inputMask.redactions.length === 0) {
+      findings.push({
+        severity: "Medium",
+        area: "Data masking",
+        title: `${connector.name} may expose ${connector.dataClass} data`,
+        detail: "Runtime enforcement did not find obvious PII in the input, but this connector class requires masking and audit review.",
+      });
+    }
+  });
+
+  const toolDecisions = tools.map((tool) => {
+    const secretRef = getSecretRefForTool(tool);
+    const secretConfigured = Boolean(process.env[secretRef]);
+    const highRisk = tool.risk === "High";
+    const approvalScoped = String(tool.auth || "").toLowerCase().includes("approval") || String(tool.auth || "").toLowerCase().includes("human");
+    const decision = highRisk && !approvalScoped ? "block" : highRisk ? "approval_required" : "allow";
+    if (decision === "block") {
+      findings.push({
+        severity: "High",
+        area: "Runtime tool policy",
+        title: `${tool.name} blocked at runtime`,
+        detail: "High-risk tool cannot be called without approval-scoped auth.",
+      });
+    }
+    return {
+      name: tool.name,
+      callable: tool.code,
+      risk: tool.risk || "Medium",
+      auth: tool.auth || "Unknown",
+      decision,
+      secretRef,
+      secretConfigured,
+    };
+  });
+
+  const pendingApprovals = approvals
+    .filter((approval) => approval.status !== "Approved")
+    .map((approval) => ({
+      gate: approval.gate,
+      approver: approval.approver,
+      status: approval.status,
+      due: approval.due,
+      notes: approval.notes,
+    }));
+
+  const highFindings = findings.filter((finding) => finding.severity === "High" || finding.severity === "Critical");
+  const blockedByPolicy = policyDecisions.some((policy) => policy.decision === "block") || toolDecisions.some((tool) => tool.decision === "block");
+  const decision = blockedByPolicy || highFindings.length ? "blocked" : pendingApprovals.length || inputMask.redactions.length ? "approval_required" : "allow";
+
+  return {
+    id: randomUUID(),
+    checkedAt: new Date().toISOString(),
+    decision,
+    maskedInput: inputMask.masked,
+    redactions: inputMask.redactions,
+    findings,
+    policyDecisions,
+    toolDecisions,
+    pendingApprovals,
+    secretsManifest: toolDecisions.map((tool) => ({
+      tool: tool.name,
+      secretRef: tool.secretRef,
+      configured: tool.secretConfigured,
+      requiredFor: tool.auth,
+    })),
+    auditRequired: auditEvents.length < 5 ? ["audit_coverage_incomplete"] : [],
+    summary:
+      decision === "allow"
+        ? "Runtime governance allows sandbox execution."
+        : decision === "approval_required"
+          ? "Runtime governance allows sandbox execution only with human approval."
+          : "Runtime governance blocks execution until policy findings are fixed.",
   };
 }
 
@@ -1588,6 +1720,26 @@ async function handleApi(req, res, url) {
     });
     await writeDb(nextDb);
     sendJson(res, 200, { ok: true, ...result });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/governance/enforce") {
+    const body = await readJsonBody(req);
+    const project = body.project || db.workspace?.project || {};
+    const enforcement = enforceGovernance(project, {
+      input: body.input || "",
+      tools: Array.isArray(body.tools) ? body.tools : project.tools,
+      retrievalResults: body.retrievalResults || [],
+    });
+    const nextDb = appendAudit(db, "governance.enforced", {
+      enforcementId: enforcement.id,
+      workflowName: project.workflowName,
+      decision: enforcement.decision,
+      redactions: enforcement.redactions.length,
+      findings: enforcement.findings.length,
+    });
+    await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, enforcement });
     return;
   }
 

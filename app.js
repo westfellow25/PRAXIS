@@ -19,6 +19,7 @@ const state = {
   documentSearch: "",
   retrieval: { query: "", results: [] },
   governanceCheck: null,
+  governanceEnforcement: null,
   mcpServerCode: "",
   toolSandbox: null,
   agentRuntimeRun: null,
@@ -3289,6 +3290,9 @@ async function runAgentRuntime() {
       body: JSON.stringify({ project: state.project, caseInput }),
     });
     state.agentRuntimeRun = response.run;
+    if (response.run?.governanceEnforcement) {
+      state.governanceEnforcement = response.run.governanceEnforcement;
+    }
     if (response.handoff) {
       const handoff = normalizeHandoff(response.handoff);
       state.handoffs = [handoff, ...state.handoffs.filter((item) => item.id !== handoff.id)];
@@ -3506,6 +3510,87 @@ function runGovernanceChecksLocal(project = state.project) {
   };
 }
 
+function maskSensitiveTextLocal(text = "") {
+  const redactions = [];
+  const patterns = [
+    { type: "email", regex: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, token: "[EMAIL]" },
+    { type: "ssn", regex: /\b\d{3}-\d{2}-\d{4}\b/g, token: "[SSN]" },
+    { type: "card", regex: /\b(?:\d[ -]*?){13,16}\b/g, token: "[CARD]" },
+    { type: "account", regex: /\b(?:acct|account|customer|case)[\s:#-]*[A-Z0-9]{6,}\b/gi, token: "[ID]" },
+    { type: "phone", regex: /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, token: "[PHONE]" },
+  ];
+  let masked = String(text || "");
+  patterns.forEach((pattern) => {
+    masked = masked.replace(pattern.regex, (match) => {
+      redactions.push({ type: pattern.type, chars: match.length });
+      return pattern.token;
+    });
+  });
+  return { masked, redactions, originalLength: String(text || "").length };
+}
+
+function secretRefForToolLocal(tool = {}) {
+  return `PRAXIS_SECRET_${String(tool.name || tool.code || "tool")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")
+    .toUpperCase() || "TOOL"}`;
+}
+
+function enforceGovernanceLocal(project = state.project, input = "") {
+  const check = runGovernanceChecksLocal(project);
+  const mask = maskSensitiveTextLocal(input);
+  const approvals = project.governance.approvals || [];
+  const pendingApprovals = approvals.filter((approval) => approval.status !== "Approved");
+  const policyDecisions = (project.governance.policies || []).map((policy) => ({
+    area: policy.area,
+    owner: policy.owner,
+    severity: policy.severity,
+    status: policy.status,
+    rule: policy.rule,
+    decision: policy.status === "Blocked" ? "block" : ["High", "Critical"].includes(policy.severity) && !["Approved", "Required"].includes(policy.status) ? "approval_required" : "allow",
+  }));
+  const toolDecisions = (project.tools || []).map((tool) => {
+    const highRisk = tool.risk === "High";
+    const approvalScoped = String(tool.auth || "").toLowerCase().includes("approval") || String(tool.auth || "").toLowerCase().includes("human");
+    return {
+      name: tool.name,
+      callable: tool.code,
+      risk: tool.risk,
+      auth: tool.auth,
+      decision: highRisk && !approvalScoped ? "block" : highRisk ? "approval_required" : "allow",
+      secretRef: secretRefForToolLocal(tool),
+      secretConfigured: false,
+    };
+  });
+  const blocked = check.findings.some((finding) => finding.severity === "High") || policyDecisions.some((policy) => policy.decision === "block") || toolDecisions.some((tool) => tool.decision === "block");
+  const decision = blocked ? "blocked" : pendingApprovals.length || mask.redactions.length ? "approval_required" : "allow";
+  return {
+    id: `local-enforcement-${Date.now()}`,
+    checkedAt: new Date().toISOString(),
+    decision,
+    maskedInput: mask.masked,
+    redactions: mask.redactions,
+    findings: check.findings,
+    policyDecisions,
+    toolDecisions,
+    pendingApprovals,
+    secretsManifest: toolDecisions.map((tool) => ({
+      tool: tool.name,
+      secretRef: tool.secretRef,
+      configured: tool.secretConfigured,
+      requiredFor: tool.auth,
+    })),
+    auditRequired: (project.governance.auditEvents || []).length < 5 ? ["audit_coverage_incomplete"] : [],
+    summary:
+      decision === "allow"
+        ? "Runtime governance allows sandbox execution."
+        : decision === "approval_required"
+          ? "Runtime governance allows sandbox execution only with human approval."
+          : "Runtime governance blocks execution until policy findings are fixed.",
+  };
+}
+
 function renderGovernance() {
   const health = getGovernanceHealth();
   document.querySelector("#governance-health").textContent = `${health.score}% governed`;
@@ -3609,7 +3694,71 @@ function renderGovernance() {
     )
     .join("");
 
+  renderGovernanceEnforcement();
   renderGovernanceEditor();
+}
+
+function renderGovernanceEnforcement() {
+  const target = document.querySelector("#governance-enforcement");
+  if (!target) return;
+  const enforcement =
+    state.governanceEnforcement ||
+    enforceGovernanceLocal(state.project, document.querySelector("#pilot-case-input")?.value || state.project.businessProblem || "");
+  const configuredSecrets = enforcement.secretsManifest.filter((secret) => secret.configured).length;
+  const missingSecrets = enforcement.secretsManifest.filter((secret) => !secret.configured).length;
+  const decisionClass = enforcement.decision === "allow" ? "passed" : enforcement.decision === "approval_required" ? "warning" : "blocked";
+  target.innerHTML = `
+    <article class="enforcement-summary ${decisionClass}">
+      <div>
+        <span>Decision</span>
+        <strong>${escapeHtml(enforcement.decision)}</strong>
+        <p>${escapeHtml(enforcement.summary)}</p>
+      </div>
+      <div>
+        <span>Masked input</span>
+        <strong>${enforcement.redactions.length}</strong>
+        <p>${escapeHtml(enforcement.maskedInput || "No sample input available.")}</p>
+      </div>
+      <div>
+        <span>Secrets manifest</span>
+        <strong>${enforcement.secretsManifest.length}</strong>
+        <p>${configuredSecrets} configured &middot; ${missingSecrets} missing locally</p>
+      </div>
+    </article>
+    <div class="enforcement-grid">
+      <article class="enforcement-card">
+        <h3>Policy decisions</h3>
+        ${
+          enforcement.policyDecisions.length
+            ? enforcement.policyDecisions
+                .map((policy) => `<p><strong>${escapeHtml(policy.decision)}</strong> &middot; ${escapeHtml(policy.area)} &middot; ${escapeHtml(policy.owner)}</p>`)
+                .join("")
+            : "<p>No policies configured.</p>"
+        }
+      </article>
+      <article class="enforcement-card">
+        <h3>Tool decisions</h3>
+        ${
+          enforcement.toolDecisions.length
+            ? enforcement.toolDecisions
+                .map((tool) => `<p><strong>${escapeHtml(tool.decision)}</strong> &middot; ${escapeHtml(tool.name)} &middot; ${escapeHtml(tool.auth)}</p>`)
+                .join("")
+            : "<p>No tools configured.</p>"
+        }
+      </article>
+      <article class="enforcement-card">
+        <h3>Findings</h3>
+        ${
+          enforcement.findings.length
+            ? enforcement.findings
+                .slice(0, 5)
+                .map((finding) => `<p><strong>${escapeHtml(finding.severity)}</strong> &middot; ${escapeHtml(finding.title)}</p>`)
+                .join("")
+            : "<p>No blocking findings.</p>"
+        }
+      </article>
+    </div>
+  `;
 }
 
 function renderGovernanceEditor() {
@@ -3705,6 +3854,8 @@ function updateGovernanceItem(event) {
   const index = Number(event.target.dataset.govIndex);
   const field = event.target.dataset.govField;
   state.project.governance[kind][index][field] = event.target.value.trim();
+  state.governanceCheck = null;
+  state.governanceEnforcement = null;
   saveProject("Governance updated");
   renderGovernance();
   renderPilotRunConsole();
@@ -3720,6 +3871,8 @@ function addPolicy() {
     severity: "High",
     status: "Draft",
   });
+  state.governanceCheck = null;
+  state.governanceEnforcement = null;
   saveProject("Policy added");
   renderGovernance();
   renderPilotRunConsole();
@@ -3735,6 +3888,8 @@ function addApproval() {
     due: "TBD",
     notes: "Describe what this approval unlocks.",
   });
+  state.governanceCheck = null;
+  state.governanceEnforcement = null;
   saveProject("Approval added");
   renderGovernance();
   renderPilotRunConsole();
@@ -3745,6 +3900,8 @@ function addApproval() {
 function deleteGovernanceItem(kind, index) {
   if (!state.project.governance[kind] || state.project.governance[kind].length <= 1) return;
   state.project.governance[kind].splice(index, 1);
+  state.governanceCheck = null;
+  state.governanceEnforcement = null;
   saveProject("Governance item deleted");
   renderGovernance();
   renderPilotRunConsole();
@@ -3777,6 +3934,37 @@ async function runGovernanceCheck() {
   } finally {
     button.disabled = false;
     button.textContent = "Run check";
+    renderGovernance();
+    renderPilotRunConsole();
+    renderDeploymentPlan();
+    renderReadout();
+  }
+}
+
+async function runGovernanceEnforcement() {
+  const button = document.querySelector("#run-governance-enforcement");
+  const input = document.querySelector("#pilot-case-input")?.value || state.project.businessProblem || "";
+  button.disabled = true;
+  button.textContent = "Enforcing";
+  try {
+    const response = await apiRequest("/governance/enforce", {
+      method: "POST",
+      body: JSON.stringify({ project: state.project, input, tools: state.project.tools }),
+    });
+    state.governanceEnforcement = response.enforcement || enforceGovernanceLocal(state.project, input);
+    state.backendOnline = true;
+    setStorageStatus(
+      `Governance ${state.governanceEnforcement.decision}`,
+      state.governanceEnforcement.decision === "allow" ? "green" : "amber",
+    );
+  } catch (error) {
+    console.info("Backend governance enforcement unavailable; using browser enforcement", error);
+    state.governanceEnforcement = enforceGovernanceLocal(state.project, input);
+    state.backendOnline = false;
+    setStorageStatus("Governance enforced locally", state.governanceEnforcement.decision === "allow" ? "green" : "amber");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Run enforcement";
     renderGovernance();
     renderPilotRunConsole();
     renderDeploymentPlan();
@@ -4644,6 +4832,7 @@ document.querySelector("#run-tool-sandbox").addEventListener("click", runToolSan
 document.querySelector("#add-policy").addEventListener("click", addPolicy);
 document.querySelector("#add-approval").addEventListener("click", addApproval);
 document.querySelector("#run-governance-check").addEventListener("click", runGovernanceCheck);
+document.querySelector("#run-governance-enforcement").addEventListener("click", runGovernanceEnforcement);
 document.querySelector("#refresh-pilot-run").addEventListener("click", async () => {
   state.agentRuntimeRun = null;
   await refreshRetrievalEvidence();

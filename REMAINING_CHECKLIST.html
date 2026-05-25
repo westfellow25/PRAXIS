@@ -279,8 +279,8 @@
       </section>
 
       <section class="stats">
-        <article class="stat"><span>Готово</span><strong>13</strong></article>
-        <article class="stat"><span>Частично</span><strong>9</strong></article>
+        <article class="stat"><span>Готово</span><strong>14</strong></article>
+        <article class="stat"><span>Частично</span><strong>8</strong></article>
         <article class="stat"><span>Не начато</span><strong>4</strong></article>
         <article class="stat"><span>Следующий фокус</span><strong>P0</strong></article>
       </section>
@@ -366,9 +366,9 @@
             <span>Handoff</span><strong>Human review queue</strong><span class="badge green">Готово</span>
             <p>`GET /api/handoffs`, `PATCH /api/handoffs/:id` и `GET /api/handoffs/alerts` есть; UI умеет approve/escalate/block и показывает SLA reminders.</p><p>Позже: external Slack/email notifications, reviewer identity, comment threads.</p><span class="priority">P0</span>
           </div>
-          <div class="row orange">
-            <span>Governance</span><strong>Policy enforcement</strong><span class="badge orange">Частично</span>
-            <p>Policies, approvals, audit requirements и `/api/governance/check` есть.</p><p>Осталось: runtime OPA-like enforcement, data masking, secrets vault.</p><span class="priority">P0</span>
+          <div class="row green">
+            <span>Governance</span><strong>Policy enforcement</strong><span class="badge green">Готово</span>
+            <p>Policies, approvals, audit requirements, `/api/governance/check` и `/api/governance/enforce` есть.</p><p>Runtime enforcement делает allow/approval/block, masking и secrets manifest. Позже: real Vault/KMS.</p><span class="priority">P0</span>
           </div>
         </div>
       </section>

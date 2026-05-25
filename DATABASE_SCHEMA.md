@@ -334,6 +334,52 @@ Documents are ingested from the Knowledge Base screen through `POST /api/documen
 }
 ```
 
+## governance enforcement response
+
+`POST /api/governance/enforce` runs the runtime policy gate immediately before an agent uses tools or produces a pilot output. It masks sensitive input, converts governance policies into decisions, checks high-risk tool approval scopes, creates a secrets manifest, and returns an allow/approval/block decision.
+
+```json
+{
+  "ok": true,
+  "enforcement": {
+    "id": "uuid",
+    "checkedAt": "ISO timestamp",
+    "decision": "approval_required",
+    "maskedInput": "Customer [EMAIL] account [ID] paid with [CARD].",
+    "redactions": [
+      {
+        "type": "email",
+        "chars": 16
+      }
+    ],
+    "findings": [],
+    "policyDecisions": [
+      {
+        "area": "PII masking",
+        "owner": "Compliance",
+        "severity": "High",
+        "status": "Required",
+        "decision": "allow"
+      }
+    ],
+    "toolDecisions": [
+      {
+        "name": "Create SAR report",
+        "risk": "High",
+        "auth": "Service account + approval",
+        "decision": "approval_required",
+        "secretRef": "PRAXIS_SECRET_CREATE_SAR_REPORT",
+        "secretConfigured": false
+      }
+    ],
+    "pendingApprovals": [],
+    "secretsManifest": [],
+    "auditRequired": [],
+    "summary": "Runtime governance allows sandbox execution only with human approval."
+  }
+}
+```
+
 ## auditLog
 
 Server-side audit events for workspace saves, playbook saves, document ingestion, eval runs, and run records.
