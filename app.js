@@ -13,6 +13,8 @@ const state = {
   playbooks: [],
   documents: [],
   handoffs: [],
+  handoffAlerts: null,
+  telemetry: null,
   playbookSearch: "",
   documentSearch: "",
   retrieval: { query: "", results: [] },
@@ -917,11 +919,13 @@ async function apiRequest(path, options = {}) {
 
 async function hydrateFromBackend() {
   try {
-    const [workspaceResponse, playbooksResponse, documentsResponse, handoffsResponse] = await Promise.all([
+    const [workspaceResponse, playbooksResponse, documentsResponse, handoffsResponse, handoffAlertsResponse, telemetryResponse] = await Promise.all([
       apiRequest("/workspace"),
       apiRequest("/playbooks"),
       apiRequest("/documents"),
       apiRequest("/handoffs"),
+      apiRequest("/handoffs/alerts"),
+      apiRequest("/telemetry"),
     ]);
     state.backendOnline = true;
 
@@ -956,6 +960,9 @@ async function hydrateFromBackend() {
     if (Array.isArray(handoffsResponse.handoffs)) {
       state.handoffs = handoffsResponse.handoffs.map(normalizeHandoff);
     }
+
+    state.handoffAlerts = normalizeHandoffAlertReport(handoffAlertsResponse);
+    state.telemetry = normalizeTelemetry(telemetryResponse.telemetry);
 
     setStorageStatus("Backend synced", "green");
     renderAll();
@@ -1112,6 +1119,98 @@ function normalizeHandoff(handoff = {}) {
     createdAt: handoff.createdAt || new Date().toISOString(),
     updatedAt: handoff.updatedAt || handoff.createdAt || new Date().toISOString(),
     audit: Array.isArray(handoff.audit) ? handoff.audit : [],
+    sla: handoff.sla || null,
+  };
+}
+
+function getLocalHandoffSla(handoff, nowMs = Date.now()) {
+  const status = handoff.status || "Pending";
+  const dueMs = Date.parse(handoff.dueAt || "");
+  const isClosed = ["Approved", "Blocked"].includes(status);
+  const dueSoonMs = 4 * 60 * 60 * 1000;
+
+  if (status === "Blocked") return { state: "blocked", label: "Blocked", severity: "Critical", minutesRemaining: 0 };
+  if (isClosed) return { state: "closed", label: "Closed", severity: "Low", minutesRemaining: 0 };
+  if (!Number.isFinite(dueMs)) return { state: "unknown", label: "No due date", severity: "Medium", minutesRemaining: null };
+
+  const minutesRemaining = Math.round((dueMs - nowMs) / 60000);
+  if (minutesRemaining < 0) return { state: "overdue", label: "Overdue", severity: "Critical", minutesRemaining };
+  if (status === "Escalated") return { state: "escalated", label: "Escalated", severity: "High", minutesRemaining };
+  if (dueMs - nowMs <= dueSoonMs) return { state: "due_soon", label: "Due soon", severity: "High", minutesRemaining };
+  return { state: "on_track", label: "On track", severity: "Low", minutesRemaining };
+}
+
+function buildLocalHandoffAlertReport(handoffs = state.handoffs) {
+  const now = Date.now();
+  const normalized = handoffs.map((handoff) => ({ ...handoff, sla: getLocalHandoffSla(handoff, now) }));
+  const activeStates = new Set(["overdue", "due_soon", "escalated", "blocked", "unknown"]);
+  const alerts = normalized
+    .filter((handoff) => activeStates.has(handoff.sla.state))
+    .map((handoff) => ({
+      id: handoff.id,
+      runId: handoff.runId,
+      workflowName: handoff.workflowName,
+      approver: handoff.approver,
+      status: handoff.status,
+      priority: handoff.priority,
+      dueAt: handoff.dueAt,
+      sla: handoff.sla,
+      message:
+        handoff.sla.state === "overdue"
+          ? `${handoff.approver} missed the review SLA for ${handoff.workflowName}.`
+          : handoff.sla.state === "due_soon"
+            ? `${handoff.workflowName} needs review within ${Math.max(0, handoff.sla.minutesRemaining)} minutes.`
+            : handoff.sla.state === "escalated"
+              ? `${handoff.workflowName} is escalated and waiting for senior review.`
+              : handoff.sla.state === "blocked"
+                ? `${handoff.workflowName} is blocked and needs remediation.`
+                : `${handoff.workflowName} has no valid due date.`,
+    }));
+
+  return {
+    generatedAt: new Date(now).toISOString(),
+    counts: {
+      total: handoffs.length,
+      pending: normalized.filter((handoff) => handoff.status === "Pending").length,
+      escalated: normalized.filter((handoff) => handoff.status === "Escalated").length,
+      blocked: normalized.filter((handoff) => handoff.status === "Blocked").length,
+      overdue: normalized.filter((handoff) => handoff.sla.state === "overdue").length,
+      dueSoon: normalized.filter((handoff) => handoff.sla.state === "due_soon").length,
+      open: normalized.filter((handoff) => !["Approved", "Blocked"].includes(handoff.status)).length,
+    },
+    alerts,
+    handoffs: normalized,
+  };
+}
+
+function normalizeHandoffAlertReport(report) {
+  const fallback = buildLocalHandoffAlertReport();
+  if (!report || !report.counts) return fallback;
+  return {
+    generatedAt: report.generatedAt || fallback.generatedAt,
+    counts: { ...fallback.counts, ...report.counts },
+    alerts: Array.isArray(report.alerts) ? report.alerts : fallback.alerts,
+    handoffs: Array.isArray(report.handoffs) ? report.handoffs.map(normalizeHandoff) : fallback.handoffs,
+  };
+}
+
+function normalizeTelemetry(telemetry = {}) {
+  return {
+    generatedAt: telemetry.generatedAt || new Date().toISOString(),
+    runCount: Number(telemetry.runCount) || 0,
+    lastRunAt: telemetry.lastRunAt || null,
+    avgConfidence: Number(telemetry.avgConfidence) || 0,
+    avgLatencyMs: Number(telemetry.avgLatencyMs) || 0,
+    totalEstimatedCostUsd: Number(telemetry.totalEstimatedCostUsd) || 0,
+    humanReviewRate: Number(telemetry.humanReviewRate) || 0,
+    outcomes: telemetry.outcomes || {},
+    value: {
+      casesPerMonth: Number(telemetry.value?.casesPerMonth) || state.project?.valueModel?.casesPerMonth || 0,
+      minutesSaved: Number(telemetry.value?.minutesSaved) || 0,
+      possibleMonthlyHours: Number(telemetry.value?.possibleMonthlyHours) || 0,
+      adoptedMonthlyHours: Number(telemetry.value?.adoptedMonthlyHours) || 0,
+      annualLaborSavings: Number(telemetry.value?.annualLaborSavings) || 0,
+    },
   };
 }
 
@@ -1497,6 +1596,7 @@ function renderValueModel() {
       <p>${model.beforeMinutes} minutes before, ${model.afterMinutes} minutes after.</p>
     </article>
   `;
+  renderRuntimeTelemetry(computed);
 
   document.querySelector("#value-scenarios").innerHTML = [
     { name: "Conservative", multiplier: 0.65, adoption: Math.max(20, model.adoptionPercent - 20), className: "" },
@@ -1520,6 +1620,41 @@ function renderValueModel() {
       `;
     })
     .join("");
+}
+
+function renderRuntimeTelemetry(computed) {
+  const target = document.querySelector("#runtime-telemetry");
+  if (!target) return;
+  const telemetry = state.telemetry || normalizeTelemetry();
+  const lastRun = telemetry.lastRunAt ? formatDate(telemetry.lastRunAt) : "No runs yet";
+  const outcomeRows = Object.entries(telemetry.outcomes || {})
+    .slice(0, 3)
+    .map(([name, count]) => `<span>${escapeHtml(name)}: ${Number(count) || 0}</span>`)
+    .join("");
+
+  target.innerHTML = `
+    <article class="telemetry-card">
+      <span>Runtime telemetry</span>
+      <strong>${telemetry.runCount}</strong>
+      <p>Saved agent runs. Last run: ${escapeHtml(lastRun)}.</p>
+    </article>
+    <article class="telemetry-card">
+      <span>Quality</span>
+      <strong>${telemetry.avgConfidence}%</strong>
+      <p>Average confidence · ${telemetry.humanReviewRate}% human review rate.</p>
+    </article>
+    <article class="telemetry-card">
+      <span>Ops</span>
+      <strong>${telemetry.avgLatencyMs}ms</strong>
+      <p>${formatMoney(telemetry.totalEstimatedCostUsd)} estimated runtime cost so far.</p>
+    </article>
+    <article class="telemetry-card highlight">
+      <span>Model-linked value</span>
+      <strong>${formatCompactMoney(telemetry.value.annualLaborSavings || computed.annualLaborSavings)}</strong>
+      <p>${Math.round(telemetry.value.adoptedMonthlyHours || computed.adoptedMonthlyHours).toLocaleString()} monthly hours tied to current assumptions.</p>
+    </article>
+    <div class="telemetry-outcomes">${outcomeRows || "<span>No outcomes recorded yet</span>"}</div>
+  `;
 }
 
 function pickIntakeTemplate(text) {
@@ -2861,6 +2996,7 @@ function renderPilotRunConsole() {
 function renderHandoffQueue() {
   const board = document.querySelector("#handoff-board");
   if (!board) return;
+  renderHandoffAlerts();
   const handoffs = [...state.handoffs].sort((a, b) => {
     const statusRank = { Pending: 0, Escalated: 1, Blocked: 2, Approved: 3 };
     return (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9) || new Date(a.dueAt) - new Date(b.dueAt);
@@ -2907,6 +3043,45 @@ function renderHandoffQueue() {
   });
 }
 
+function renderHandoffAlerts() {
+  const alertsEl = document.querySelector("#handoff-alerts");
+  if (!alertsEl) return;
+  const report = state.handoffAlerts || buildLocalHandoffAlertReport();
+  const counts = report.counts || {};
+  const alerts = Array.isArray(report.alerts) ? report.alerts.slice(0, 3) : [];
+
+  alertsEl.innerHTML = `
+    <div class="handoff-alert-card ${Number(counts.overdue) || Number(counts.blocked) ? "critical" : Number(counts.dueSoon) || Number(counts.escalated) ? "warning" : "healthy"}">
+      <span>Open reviews</span>
+      <strong>${Number(counts.open) || 0}</strong>
+      <p>${Number(counts.overdue) || 0} overdue · ${Number(counts.dueSoon) || 0} due soon · ${Number(counts.escalated) || 0} escalated</p>
+    </div>
+    <div class="handoff-alert-list">
+      ${
+        alerts.length
+          ? alerts
+              .map(
+                (alert) => `
+                  <article class="handoff-alert-item ${escapeHtml(alert.sla?.severity || "Medium")}">
+                    <span>${escapeHtml(alert.sla?.label || "Needs review")}</span>
+                    <strong>${escapeHtml(alert.workflowName || "Workflow")}</strong>
+                    <p>${escapeHtml(alert.message || "Review this handoff before downstream action.")}</p>
+                  </article>
+                `,
+              )
+              .join("")
+          : `
+            <article class="handoff-alert-item Low">
+              <span>SLA clear</span>
+              <strong>No active reminders</strong>
+              <p>Pending handoffs are inside SLA or the queue is empty.</p>
+            </article>
+          `
+      }
+    </div>
+  `;
+}
+
 function formatDate(value) {
   try {
     return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
@@ -2929,7 +3104,9 @@ async function runAgentRuntime() {
     if (response.handoff) {
       const handoff = normalizeHandoff(response.handoff);
       state.handoffs = [handoff, ...state.handoffs.filter((item) => item.id !== handoff.id)];
+      state.handoffAlerts = normalizeHandoffAlertReport(response.handoffAlerts || buildLocalHandoffAlertReport(state.handoffs));
     }
+    state.telemetry = normalizeTelemetry(response.telemetry);
     state.backendOnline = true;
     setStorageStatus(`Agent run saved ${response.run.id.slice(0, 8)}`, response.run.requiresHumanReview ? "amber" : "green");
   } catch (error) {
@@ -2943,6 +3120,7 @@ async function runAgentRuntime() {
     button.textContent = "Run agent";
     renderPilotRunConsole();
     renderHandoffQueue();
+    renderValueModel();
     renderDeploymentPlan();
     renderReadout();
     switchView("pilot");
@@ -2951,14 +3129,16 @@ async function runAgentRuntime() {
 
 async function refreshHandoffs() {
   try {
-    const response = await apiRequest("/handoffs");
+    const [response, alertsResponse] = await Promise.all([apiRequest("/handoffs"), apiRequest("/handoffs/alerts")]);
     state.handoffs = (response.handoffs || []).map(normalizeHandoff);
+    state.handoffAlerts = normalizeHandoffAlertReport(alertsResponse);
     state.backendOnline = true;
     setStorageStatus("Handoffs synced", "green");
   } catch (error) {
     state.backendOnline = false;
     console.info("Handoff backend unavailable", error);
     setStorageStatus("Handoff queue local only", "amber");
+    state.handoffAlerts = buildLocalHandoffAlertReport();
   }
   renderHandoffQueue();
 }
@@ -2979,6 +3159,7 @@ async function updateHandoffStatus(handoffId, status) {
     });
     const updated = normalizeHandoff(response.handoff);
     state.handoffs = state.handoffs.map((item) => (item.id === handoffId ? updated : item));
+    state.handoffAlerts = normalizeHandoffAlertReport(response.handoffAlerts || buildLocalHandoffAlertReport(state.handoffs));
     state.backendOnline = true;
     setStorageStatus(`Handoff ${status.toLowerCase()}`, status === "Approved" ? "green" : "amber");
   } catch (error) {
@@ -2996,6 +3177,7 @@ async function updateHandoffStatus(handoffId, status) {
           }
         : item,
     );
+    state.handoffAlerts = buildLocalHandoffAlertReport();
     setStorageStatus(`Handoff ${status.toLowerCase()} locally`, "amber");
   }
   renderHandoffQueue();
@@ -3025,8 +3207,11 @@ async function savePilotRun() {
         governance: run.governance,
       }),
     });
+    state.telemetry = normalizeTelemetry(response.telemetry);
     state.backendOnline = true;
     setStorageStatus(`Run saved ${response.run.id.slice(0, 8)}`, "green");
+    renderValueModel();
+    renderReadout();
   } catch (error) {
     state.backendOnline = false;
     console.info("Could not save run to backend", error);

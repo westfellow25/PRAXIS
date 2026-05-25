@@ -2026,6 +2026,63 @@ p {
   font-size: 13px;
 }
 
+.runtime-telemetry {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.telemetry-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+  padding: 12px;
+}
+
+.telemetry-card.highlight {
+  border-color: rgba(196, 135, 42, 0.28);
+  background: var(--gold-soft);
+}
+
+.telemetry-card span,
+.telemetry-outcomes span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.telemetry-card strong {
+  display: block;
+  margin: 6px 0;
+  color: var(--ink);
+  font-size: 21px;
+  line-height: 1;
+}
+
+.telemetry-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.telemetry-outcomes {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.telemetry-outcomes span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(248, 245, 236, 0.72);
+  padding: 7px 9px;
+}
+
 .value-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2242,6 +2299,90 @@ p {
   color: var(--ink);
 }
 
+.handoff-alerts {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.45fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.handoff-alert-card,
+.handoff-alert-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+  padding: 12px;
+}
+
+.handoff-alert-card {
+  border-left: 4px solid var(--green);
+}
+
+.handoff-alert-card.warning {
+  border-left-color: var(--gold);
+  background: var(--gold-soft);
+}
+
+.handoff-alert-card.critical {
+  border-left-color: var(--red);
+  background: var(--red-soft);
+}
+
+.handoff-alert-card span,
+.handoff-alert-item span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.handoff-alert-card strong {
+  display: block;
+  margin: 5px 0;
+  color: var(--ink);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.handoff-alert-card p,
+.handoff-alert-item p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.handoff-alert-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.handoff-alert-item {
+  border-left: 4px solid var(--line);
+}
+
+.handoff-alert-item.Critical {
+  border-left-color: var(--red);
+}
+
+.handoff-alert-item.High {
+  border-left-color: var(--gold);
+}
+
+.handoff-alert-item.Low {
+  border-left-color: var(--green);
+}
+
+.handoff-alert-item strong {
+  display: block;
+  margin: 5px 0;
+  color: var(--ink);
+  font-size: 13px;
+}
+
 .handoff-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2442,7 +2583,9 @@ p {
 
   .scenario-grid,
   .value-summary,
-  .pilot-summary {
+  .runtime-telemetry,
+  .pilot-summary,
+  .handoff-alert-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2519,6 +2662,7 @@ p {
   .document-card,
   .ingestion-step,
   .trace-step,
+  .handoff-card,
   .eval-item,
   .eval-editor-card {
     grid-template-columns: 1fr;
@@ -2541,7 +2685,10 @@ p {
   .policy-row,
   .scenario-grid,
   .value-summary,
+  .runtime-telemetry,
   .pilot-summary,
+  .handoff-alerts,
+  .handoff-alert-list,
   .value-form {
     grid-template-columns: 1fr;
   }

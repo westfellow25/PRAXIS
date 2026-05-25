@@ -899,6 +899,147 @@ function createHandoffFromRun(run) {
   };
 }
 
+function getHandoffSla(handoff, nowMs = Date.now()) {
+  const status = handoff.status || "Pending";
+  const dueMs = Date.parse(handoff.dueAt || "");
+  const isClosed = ["Approved", "Blocked"].includes(status);
+  const dueSoonMs = 4 * 60 * 60 * 1000;
+
+  if (status === "Blocked") {
+    return { state: "blocked", label: "Blocked", severity: "Critical", minutesRemaining: 0 };
+  }
+
+  if (isClosed) {
+    return { state: "closed", label: "Closed", severity: "Low", minutesRemaining: 0 };
+  }
+
+  if (!Number.isFinite(dueMs)) {
+    return { state: "unknown", label: "No due date", severity: "Medium", minutesRemaining: null };
+  }
+
+  const minutesRemaining = Math.round((dueMs - nowMs) / 60000);
+  if (minutesRemaining < 0) {
+    return { state: "overdue", label: "Overdue", severity: "Critical", minutesRemaining };
+  }
+
+  if (status === "Escalated") {
+    return { state: "escalated", label: "Escalated", severity: "High", minutesRemaining };
+  }
+
+  if (dueMs - nowMs <= dueSoonMs) {
+    return { state: "due_soon", label: "Due soon", severity: "High", minutesRemaining };
+  }
+
+  return { state: "on_track", label: "On track", severity: "Low", minutesRemaining };
+}
+
+function buildHandoffAlerts(handoffs = []) {
+  const now = Date.now();
+  const normalized = handoffs.map((handoff) => ({
+    ...handoff,
+    sla: getHandoffSla(handoff, now),
+  }));
+  const activeStates = new Set(["overdue", "due_soon", "escalated", "blocked", "unknown"]);
+  const alerts = normalized
+    .filter((handoff) => activeStates.has(handoff.sla.state))
+    .sort((a, b) => {
+      const severityRank = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+      return (severityRank[a.sla.severity] ?? 9) - (severityRank[b.sla.severity] ?? 9) || Date.parse(a.dueAt || "") - Date.parse(b.dueAt || "");
+    })
+    .slice(0, 50)
+    .map((handoff) => ({
+      id: handoff.id,
+      runId: handoff.runId,
+      workflowName: handoff.workflowName,
+      approver: handoff.approver,
+      status: handoff.status,
+      priority: handoff.priority,
+      dueAt: handoff.dueAt,
+      sla: handoff.sla,
+      message:
+        handoff.sla.state === "overdue"
+          ? `${handoff.approver} missed the review SLA for ${handoff.workflowName}.`
+          : handoff.sla.state === "due_soon"
+            ? `${handoff.workflowName} needs review within ${Math.max(0, handoff.sla.minutesRemaining)} minutes.`
+            : handoff.sla.state === "escalated"
+              ? `${handoff.workflowName} is escalated and waiting for senior review.`
+              : handoff.sla.state === "blocked"
+                ? `${handoff.workflowName} is blocked and needs remediation.`
+                : `${handoff.workflowName} has no valid due date.`,
+    }));
+
+  return {
+    generatedAt: new Date(now).toISOString(),
+    counts: {
+      total: handoffs.length,
+      pending: normalized.filter((handoff) => handoff.status === "Pending").length,
+      escalated: normalized.filter((handoff) => handoff.status === "Escalated").length,
+      blocked: normalized.filter((handoff) => handoff.status === "Blocked").length,
+      overdue: normalized.filter((handoff) => handoff.sla.state === "overdue").length,
+      dueSoon: normalized.filter((handoff) => handoff.sla.state === "due_soon").length,
+      open: normalized.filter((handoff) => !["Approved", "Blocked"].includes(handoff.status)).length,
+    },
+    alerts,
+    handoffs: normalized,
+  };
+}
+
+function parseDurationMinutes(value) {
+  const match = String(value || "").match(/[0-9.]+/);
+  return match ? Number(match[0]) : 0;
+}
+
+function averageNumber(values = []) {
+  const clean = values.map(Number).filter(Number.isFinite);
+  if (!clean.length) return 0;
+  return Math.round(clean.reduce((sum, value) => sum + value, 0) / clean.length);
+}
+
+function buildTelemetryReport(db = {}) {
+  const runs = Array.isArray(db.runs) ? db.runs : [];
+  const payloads = runs.map((run) => run.payload || run);
+  const latencies = payloads.map((run) => run.latencyMs);
+  const costs = payloads.map((run) => run.estimatedCostUsd);
+  const confidences = runs.map((run) => run.confidence);
+  const humanReviewCount = payloads.filter((run) => run.requiresHumanReview).length;
+  const totalCost = costs.map(Number).filter(Number.isFinite).reduce((sum, value) => sum + value, 0);
+  const outcomes = runs.reduce((acc, run) => {
+    const key = run.outcome || "Unknown";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const project = db.workspace?.project || {};
+  const model = project.valueModel || {};
+  const beforeMinutes = Number(model.beforeMinutes || parseDurationMinutes(project.beforeTime) || 0);
+  const afterMinutes = Number(model.afterMinutes || parseDurationMinutes(project.afterTime) || 0);
+  const casesPerMonth = Number(model.casesPerMonth || 0);
+  const loadedCostPerHour = Number(model.loadedCostPerHour || 0);
+  const adoptionPercent = Number(model.adoptionPercent || 0);
+  const minutesSaved = Math.max(0, beforeMinutes - afterMinutes);
+  const possibleMonthlyHours = (casesPerMonth * minutesSaved) / 60;
+  const adoptedMonthlyHours = possibleMonthlyHours * (adoptionPercent / 100);
+  const annualLaborSavings = adoptedMonthlyHours * loadedCostPerHour * 12;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    runCount: runs.length,
+    lastRunAt: runs[0]?.createdAt || null,
+    avgConfidence: averageNumber(confidences),
+    avgLatencyMs: averageNumber(latencies),
+    totalEstimatedCostUsd: Number(totalCost.toFixed(4)),
+    humanReviewRate: runs.length ? Math.round((humanReviewCount / runs.length) * 100) : 0,
+    outcomes,
+    value: {
+      casesPerMonth,
+      minutesSaved,
+      possibleMonthlyHours: Math.round(possibleMonthlyHours),
+      adoptedMonthlyHours: Math.round(adoptedMonthlyHours),
+      annualLaborSavings: Math.round(annualLaborSavings),
+    },
+  };
+}
+
 function updateHandoffRecord(handoff, patch = {}) {
   const now = new Date().toISOString();
   const nextStatus = patch.status || handoff.status;
@@ -1060,8 +1201,19 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/telemetry") {
+    sendJson(res, 200, { ok: true, telemetry: buildTelemetryReport(db) });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/handoffs") {
     sendJson(res, 200, { ok: true, handoffs: Array.isArray(db.handoffs) ? db.handoffs : [] });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/handoffs/alerts") {
+    const report = buildHandoffAlerts(Array.isArray(db.handoffs) ? db.handoffs : []);
+    sendJson(res, 200, { ok: true, ...report });
     return;
   }
 
@@ -1089,7 +1241,7 @@ async function handleApi(req, res, url) {
       { handoffId, runId: updated.runId, status: updated.status, decision: updated.decision },
     );
     const saved = await writeDb(nextDb);
-    sendJson(res, 200, { ok: true, handoff: updated, handoffs: saved.handoffs });
+    sendJson(res, 200, { ok: true, handoff: updated, handoffs: saved.handoffs, handoffAlerts: buildHandoffAlerts(saved.handoffs) });
     return;
   }
 
@@ -1212,7 +1364,15 @@ async function handleApi(req, res, url) {
       },
     );
     const saved = await writeDb(nextDb);
-    sendJson(res, 201, { ok: true, run, handoff, totalRuns: saved.runs.length, totalHandoffs: saved.handoffs.length });
+    sendJson(res, 201, {
+      ok: true,
+      run,
+      handoff,
+      handoffAlerts: buildHandoffAlerts(Array.isArray(saved.handoffs) ? saved.handoffs : []),
+      telemetry: buildTelemetryReport(saved),
+      totalRuns: saved.runs.length,
+      totalHandoffs: saved.handoffs.length,
+    });
     return;
   }
 
@@ -1237,7 +1397,7 @@ async function handleApi(req, res, url) {
       { runId: run.id, workflowName: run.workflowName, outcome: run.outcome },
     );
     const saved = await writeDb(nextDb);
-    sendJson(res, 201, { ok: true, run, totalRuns: saved.runs.length });
+    sendJson(res, 201, { ok: true, run, telemetry: buildTelemetryReport(saved), totalRuns: saved.runs.length });
     return;
   }
 

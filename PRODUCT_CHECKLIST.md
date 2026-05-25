@@ -99,7 +99,7 @@
 | [ ] | API Readiness Agent | Проверяет API пригодность | Не начато | Нужен OpenAPI/API testing |
 | [x] | Workflow Agent | Реально выполняет задачу | Частично | `/api/agent/run` выполняет deterministic runtime: retrieval, tools, evals, governance, decision, audit; настоящие tool calls еще не подключены |
 | [x] | Compliance Agent | Реально проверяет политики | Частично | `/api/governance/check` делает pre-flight findings; runtime enforcement еще не готов |
-| [x] | Human Handoff Agent | Очередь ручных решений | Частично | Agent Runtime создаёт handoff queue item; UI поддерживает approve/escalate/block; нет notifications и SLA automation |
+| [x] | Human Handoff Agent | Очередь ручных решений | Готово для MVP | Agent Runtime создаёт handoff queue item; UI поддерживает approve/escalate/block; SLA alerts показывают overdue/due soon/escalated; external notifications позже |
 
 ## 8. Evals & Observability
 
@@ -114,7 +114,7 @@
 | [x] | Retrieval accuracy evals | Проверка, нашёл ли агент правильные документы | Частично | Backend eval runner учитывает retrieval evidence coverage; golden datasets еще не готовы |
 | [ ] | Recommendation match evals | Сравнение с human decisions | Частично | Handoff decisions уже сохраняются; нужен scoring против historical decisions |
 | [ ] | Hallucination checks | Проверка unsupported claims | Не начато | Нужен LLM/eval engine |
-| [ ] | Cost/latency tracking | Метрики каждого agent run | Не начато | Нужен runtime |
+| [x] | Cost/latency tracking | Метрики каждого agent run | Готово для MVP | `/api/telemetry` агрегирует latency, cost, confidence, human review rate и Value screen показывает runtime telemetry |
 | [ ] | Regression history | История качества по версиям | Не начато | Нужна БД |
 
 ## 9. Engagement Workspace
@@ -128,7 +128,7 @@
 | [x] | Local persistence | Сохранение workspace | Готово | localStorage |
 | [x] | JSON export/import | Перенос workspace | Готово | Есть кнопки export/import |
 | [ ] | Comments/mentions | Совместные обсуждения | Не начато | Нужен backend |
-| [ ] | Tasks/owners with notifications | Реальные assignment/alerts | Частично | Handoff queue хранит approver/status/due date; нет email/slack notifications |
+| [x] | Tasks/owners with notifications | Реальные assignment/alerts | Готово для MVP | Handoff queue хранит approver/status/due date; `/api/handoffs/alerts` и UI показывают overdue/due soon/escalated SLA reminders; external email/slack позже |
 | [ ] | Role-based views | FDE/client/executive/compliance modes | Не начато | Можно добавить в UI |
 
 ## 10. Типовой AML workflow
@@ -159,7 +159,7 @@
 | [x] | Opportunity Board | Список AI-возможностей | Готово | Есть scoring table |
 | [x] | Tool Fabric | API/tools готовность | Готово | Есть readiness + manifest |
 | [x] | Governance | Policies, approvals, audit | Готово | Есть отдельный экран |
-| [x] | Value Model | ROI, hours, payback | Готово | Есть model + scenarios |
+| [x] | Value Model | ROI, hours, payback | Готово | Есть model + scenarios + backend runtime telemetry через `/api/telemetry` |
 | [x] | Agent Builder | Visual workflow canvas | Готово | Есть |
 | [x] | Pilot Console | End-to-end run trace | Готово | Добавлено |
 | [x] | Eval Center | Тестовая лаборатория агента | Готово | Есть |

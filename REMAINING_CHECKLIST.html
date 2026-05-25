@@ -279,9 +279,9 @@
       </section>
 
       <section class="stats">
-        <article class="stat"><span>Готово</span><strong>9</strong></article>
-        <article class="stat"><span>Частично</span><strong>11</strong></article>
-        <article class="stat"><span>Не начато</span><strong>5</strong></article>
+        <article class="stat"><span>Готово</span><strong>12</strong></article>
+        <article class="stat"><span>Частично</span><strong>10</strong></article>
+        <article class="stat"><span>Не начато</span><strong>4</strong></article>
         <article class="stat"><span>Следующий фокус</span><strong>P0</strong></article>
       </section>
 
@@ -362,9 +362,9 @@
             <span>Runtime</span><strong>Actual agent execution</strong><span class="badge orange">Частично</span>
             <p>`/api/agent/run` выполняет deterministic runtime: retrieval, tool selection, eval gate, governance gate, human handoff.</p><p>Осталось: настоящие tool execution, retries, state machine.</p><span class="priority">P0</span>
           </div>
-          <div class="row orange">
-            <span>Handoff</span><strong>Human review queue</strong><span class="badge orange">Частично</span>
-            <p>`GET /api/handoffs` и `PATCH /api/handoffs/:id` есть; UI умеет approve/escalate/block.</p><p>Осталось: notifications, SLA reminders, reviewer identity, comment threads.</p><span class="priority">P0</span>
+          <div class="row green">
+            <span>Handoff</span><strong>Human review queue</strong><span class="badge green">Готово</span>
+            <p>`GET /api/handoffs`, `PATCH /api/handoffs/:id` и `GET /api/handoffs/alerts` есть; UI умеет approve/escalate/block и показывает SLA reminders.</p><p>Позже: external Slack/email notifications, reviewer identity, comment threads.</p><span class="priority">P0</span>
           </div>
           <div class="row orange">
             <span>Governance</span><strong>Policy enforcement</strong><span class="badge orange">Частично</span>
@@ -396,13 +396,17 @@
             <span>Collab</span><strong>Multi-user workspace</strong><span class="badge red">Не начато</span>
             <p>Нет comments, mentions, assignments.</p><p>Tasks, owners, notifications, decision log, client/FDE/executive views.</p><span class="priority">P2</span>
           </div>
+          <div class="row green">
+            <span>Tasks</span><strong>Owners and SLA alerts</strong><span class="badge green">Готово</span>
+            <p>Handoff queue хранит approver, status, due date, reviewer notes и audit events.</p><p>`/api/handoffs/alerts` даёт overdue/due soon/escalated reminders в UI.</p><span class="priority">P1</span>
+          </div>
           <div class="row red">
             <span>Files</span><strong>PDF/DOCX ingestion</strong><span class="badge red">Не начато</span>
             <p>Сейчас `.txt`, `.md`, `.json`.</p><p>PDF parser, DOCX parser, tables extraction, OCR later.</p><span class="priority">P1</span>
           </div>
-          <div class="row red">
-            <span>Metrics</span><strong>ROI telemetry</strong><span class="badge red">Не начато</span>
-            <p>Value Model считается вручную.</p><p>Actual before/after measurements, adoption, cost per run, override rate.</p><span class="priority">P1</span>
+          <div class="row green">
+            <span>Metrics</span><strong>ROI telemetry</strong><span class="badge green">Готово</span>
+            <p>`GET /api/telemetry` агрегирует saved agent runs: count, confidence, latency, estimated cost, human review rate.</p><p>Value screen показывает runtime telemetry и value-linked hours/savings.</p><span class="priority">P1</span>
           </div>
           <div class="row orange">
             <span>Playbooks</span><strong>Playbook marketplace</strong><span class="badge orange">Частично</span>

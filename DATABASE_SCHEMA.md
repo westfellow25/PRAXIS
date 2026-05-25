@@ -122,7 +122,7 @@ Runs are saved from Pilot Console.
 
 ## handoffs
 
-Handoffs are created by `POST /api/agent/run` whenever the runtime decides a human must review the output. They can be read with `GET /api/handoffs` and updated with `PATCH /api/handoffs/:id`.
+Handoffs are created by `POST /api/agent/run` whenever the runtime decides a human must review the output. They can be read with `GET /api/handoffs`, summarized with `GET /api/handoffs/alerts`, and updated with `PATCH /api/handoffs/:id`.
 
 ```json
 {
@@ -152,6 +152,33 @@ Handoffs are created by `POST /api/agent/run` whenever the runtime decides a hum
   ],
   "createdAt": "ISO timestamp",
   "updatedAt": "ISO timestamp"
+}
+```
+
+`GET /api/handoffs/alerts` computes SLA state instead of storing it permanently. The response includes `counts.open`, `counts.overdue`, `counts.dueSoon`, `counts.escalated`, `alerts[]`, and normalized handoffs with an `sla` object.
+
+## telemetry
+
+`GET /api/telemetry` derives operational value telemetry from saved runs and the current workspace value model.
+
+```json
+{
+  "runCount": 12,
+  "lastRunAt": "ISO timestamp",
+  "avgConfidence": 87,
+  "avgLatencyMs": 42,
+  "totalEstimatedCostUsd": 1.24,
+  "humanReviewRate": 67,
+  "outcomes": {
+    "Human review required": 8
+  },
+  "value": {
+    "casesPerMonth": 18000,
+    "minutesSaved": 36,
+    "possibleMonthlyHours": 10800,
+    "adoptedMonthlyHours": 8100,
+    "annualLaborSavings": 7776000
+  }
 }
 ```
 
