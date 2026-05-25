@@ -18,6 +18,7 @@ The Postgres-ready draft is in `schema.sql`.
   "runs": [],
   "evalRuns": [],
   "contextGraphs": [],
+  "connectorTests": [],
   "handoffs": [],
   "documents": [],
   "auditLog": [],
@@ -47,6 +48,7 @@ The Postgres-ready draft is in `schema.sql`.
       "runs": 12,
       "evalRuns": 5,
       "contextGraphs": 3,
+      "connectorTests": 4,
       "handoffs": 4,
       "documents": 3,
       "auditEvents": 42
@@ -354,6 +356,39 @@ Documents are ingested from the Knowledge Base screen through `POST /api/documen
 }
 ```
 
+## connector test response
+
+`POST /api/connectors/test` runs a dry-run readiness harness across mapped source systems and stores the report in `connectorTests`. It does not call external SaaS APIs yet; it validates whether each source has enough access, ownership, data-control, refresh, purpose, and Knowledge Base evidence to be trusted by an agent pilot.
+
+```json
+{
+  "ok": true,
+  "connectorTest": {
+    "id": "uuid",
+    "workflowName": "AML Alert Briefing",
+    "connectorCount": 5,
+    "averageScore": 82,
+    "readyForPilot": true,
+    "dryRunOnly": true,
+    "counts": {
+      "pass": 2,
+      "warn": 3,
+      "fail": 0
+    },
+    "sourceChecks": [
+      {
+        "name": "KYC database",
+        "status": "warn",
+        "adapterMode": "local-document-connector",
+        "tests": [],
+        "evidence": []
+      }
+    ]
+  },
+  "connectorTestHistory": []
+}
+```
+
 ## OpenAPI import response
 
 `POST /api/openapi/import` converts OpenAPI paths into Tool Fabric rows.
@@ -554,6 +589,7 @@ When we graduate from JSON to Postgres, this maps cleanly into:
 - `projects`
 - `process_steps`
 - `connectors`
+- `connector_test_runs`
 - `tools`
 - `tool_sandbox_runs`
 - `governance_policies`

@@ -365,6 +365,7 @@
                 <h2>Which enterprise systems can the agent actually read or write?</h2>
               </div>
               <div class="panel-actions">
+                <button class="ghost-button small" id="test-connectors">Test connectors</button>
                 <button class="ghost-button small" id="add-connector">Add connector</button>
                 <span class="status-pill" id="connector-health">Checking connectors</span>
               </div>
@@ -393,6 +394,16 @@
               <div class="connector-risk-map" id="connector-risk-map"></div>
             </article>
           </div>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Connector test harness</div>
+                <h2>Dry-run every source before the agent relies on it</h2>
+              </div>
+            </div>
+            <div class="connector-test-results" id="connector-test-results"></div>
+          </article>
 
           <article class="panel">
             <div class="panel-header">

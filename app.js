@@ -20,6 +20,7 @@ const state = {
   evalHistory: [],
   contextGraphSnapshot: null,
   contextGraphSearchResults: [],
+  connectorTest: null,
   playbookSearch: "",
   documentSearch: "",
   retrieval: { query: "", results: [] },
@@ -2470,12 +2471,103 @@ function renderConnectors() {
     )
     .join("");
 
+  renderConnectorTestReport();
+
   document.querySelectorAll("[data-connector-field]").forEach((field) => {
     field.addEventListener("change", updateConnector);
   });
   document.querySelectorAll("[data-delete-connector]").forEach((button) => {
     button.addEventListener("click", () => deleteConnector(Number(button.dataset.deleteConnector)));
   });
+}
+
+function renderConnectorTestReport() {
+  const container = document.querySelector("#connector-test-results");
+  if (!container) return;
+  if (!state.connectorTest) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <strong>No connector test yet</strong>
+        <p>Run a dry-run readiness test to see which sources are safe for a pilot, which need approval, and which need more evidence.</p>
+      </div>
+    `;
+    return;
+  }
+  const report = state.connectorTest;
+  container.innerHTML = `
+    <div class="connector-test-summary">
+      <article>
+        <span>Average readiness</span>
+        <strong>${report.averageScore}%</strong>
+        <p>${report.readyForPilot ? "No failing connector gates for this pilot." : "Fix failing gates before pilot launch."}</p>
+      </article>
+      <article>
+        <span>Sources tested</span>
+        <strong>${report.connectorCount}</strong>
+        <p>${report.counts.pass} pass, ${report.counts.warn} warn, ${report.counts.fail} fail.</p>
+      </article>
+      <article>
+        <span>Mode</span>
+        <strong>${report.dryRunOnly ? "Dry-run" : "Live"}</strong>
+        <p>Tests validate contracts and evidence without calling external systems.</p>
+      </article>
+    </div>
+    <div class="connector-test-list">
+      ${report.sourceChecks
+        .map(
+          (check) => `
+            <article class="connector-test-card ${check.status}">
+              <div class="connector-test-head">
+                <div>
+                  <span>${escapeHtml(check.type)} · ${escapeHtml(check.adapterMode)}</span>
+                  <strong>${escapeHtml(check.name)}</strong>
+                </div>
+                <b>${check.score}%</b>
+              </div>
+              <div class="connector-test-checks">
+                ${check.tests
+                  .map(
+                    (test) => `
+                      <div class="connector-test-check ${test.status}">
+                        <span>${escapeHtml(test.label)}</span>
+                        <strong>${escapeHtml(test.status.toUpperCase())}</strong>
+                        <p>${escapeHtml(test.detail)}</p>
+                      </div>
+                    `,
+                  )
+                  .join("")}
+              </div>
+              <p class="connector-evidence">${check.evidence.length ? `${check.evidence.length} evidence document(s): ${check.evidence.map((doc) => doc.name).join(", ")}` : "No Knowledge Base evidence matched yet."}</p>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+async function testConnectors() {
+  const button = document.querySelector("#test-connectors");
+  button.disabled = true;
+  button.textContent = "Testing...";
+  try {
+    const response = await apiRequest("/connectors/test", {
+      method: "POST",
+      body: JSON.stringify({ project: state.project }),
+    });
+    state.connectorTest = response.connectorTest;
+    state.backendOnline = true;
+    setStorageStatus(`${state.connectorTest.connectorCount} connectors tested`, "green");
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("Connector test unavailable", error);
+    setStorageStatus("Connector test failed", "amber");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Test connectors";
+    renderConnectors();
+    renderDatabaseStatus();
+  }
 }
 
 function updateConnector(event) {
@@ -5097,6 +5189,7 @@ document.querySelector("#context-search-input").addEventListener("keydown", (eve
   if (event.key === "Enter") searchContextGraph();
 });
 document.querySelector("#add-connector").addEventListener("click", addConnector);
+document.querySelector("#test-connectors").addEventListener("click", testConnectors);
 document.querySelector("#document-files").addEventListener("change", ingestDocumentFiles);
 document.querySelector("#ingest-document-text").addEventListener("click", ingestPastedDocument);
 document.querySelector("#clear-document-text").addEventListener("click", () => {

@@ -51,6 +51,7 @@ function createEmptyDb() {
     runs: [],
     evalRuns: [],
     contextGraphs: [],
+    connectorTests: [],
     handoffs: [],
     documents: [],
     auditLog: [],
@@ -68,6 +69,7 @@ function migrateDb(db = {}) {
     runs: Array.isArray(db.runs) ? db.runs : [],
     evalRuns: Array.isArray(db.evalRuns) ? db.evalRuns : [],
     contextGraphs: Array.isArray(db.contextGraphs) ? db.contextGraphs : [],
+    connectorTests: Array.isArray(db.connectorTests) ? db.connectorTests : [],
     handoffs: Array.isArray(db.handoffs) ? db.handoffs : [],
     documents: Array.isArray(db.documents) ? db.documents : [],
     auditLog: Array.isArray(db.auditLog) ? db.auditLog : [],
@@ -180,6 +182,7 @@ async function buildDatabaseStatus(db) {
     runs: Array.isArray(db.runs) ? db.runs.length : 0,
     evalRuns: Array.isArray(db.evalRuns) ? db.evalRuns.length : 0,
     contextGraphs: Array.isArray(db.contextGraphs) ? db.contextGraphs.length : 0,
+    connectorTests: Array.isArray(db.connectorTests) ? db.connectorTests.length : 0,
     handoffs: Array.isArray(db.handoffs) ? db.handoffs.length : 0,
     documents: Array.isArray(db.documents) ? db.documents.length : 0,
     auditEvents: Array.isArray(db.auditLog) ? db.auditLog.length : 0,
@@ -866,6 +869,136 @@ function getServerConnectorHealth(project = {}) {
     blocked,
     total: connectors.length,
     ready: averageScore >= 70 && blocked === 0,
+  };
+}
+
+function connectorMatchesDocument(connector = {}, document = {}) {
+  const tokens = uniqueServer([
+    connector.name,
+    connector.type,
+    ...(String(connector.name || "").split(/\s+/).filter((token) => token.length > 2)),
+  ]).map((token) => token.toLowerCase());
+  const documentText = [
+    document.name,
+    document.summary,
+    ...(document.systems || []),
+    ...(document.keywords || []),
+    ...(document.chunks || []).slice(0, 5).map((chunk) => chunk.text),
+  ]
+    .join(" ")
+    .toLowerCase();
+  return tokens.some((token) => documentText.includes(token));
+}
+
+function buildConnectorTestReport(project = {}, documents = []) {
+  const connectors = Array.isArray(project.connectors) ? project.connectors : [];
+  const sourceChecks = connectors.map((connector) => {
+    const connectorDocuments = documents.filter((document) => connectorMatchesDocument(connector, document)).slice(0, 5);
+    const score = scoreServerConnector(connector);
+    const sensitive = ["PII", "Confidential", "Regulated", "Financial"].includes(connector.dataClass);
+    const ownerReady = connector.owner && connector.owner !== "System owner";
+    const accessReady = connector.access && !["No access"].includes(connector.access);
+    const writeScoped = String(connector.access || "").toLowerCase().includes("approval") || String(connector.access || "").toLowerCase().includes("delegated");
+    const sandboxReady = ["Sandbox ready", "Production ready"].includes(connector.status);
+    const productionReady = connector.status === "Production ready";
+    const hasPurpose = Boolean(connector.purpose && connector.records);
+    const tests = [
+      {
+        code: "owner",
+        label: "Owner mapped",
+        status: ownerReady ? "pass" : "warn",
+        detail: ownerReady ? `${connector.owner} owns the source.` : "Assign a real system owner before production.",
+      },
+      {
+        code: "access",
+        label: "Access mode",
+        status: accessReady ? "pass" : "fail",
+        detail: accessReady ? connector.access : "No access means agents cannot retrieve or act on this source.",
+      },
+      {
+        code: "data_controls",
+        label: "Sensitive data controls",
+        status: sensitive && !writeScoped ? "warn" : "pass",
+        detail: sensitive
+          ? `${connector.dataClass} data requires masking, audit, and approval-aware runtime.`
+          : "Internal data class is low-friction for pilot use.",
+      },
+      {
+        code: "refresh",
+        label: "Refresh cadence",
+        status: connector.refresh === "Manual export" ? "warn" : "pass",
+        detail: `${connector.refresh || "Unknown"} refresh cadence.`,
+      },
+      {
+        code: "purpose",
+        label: "Records and purpose",
+        status: hasPurpose ? "pass" : "warn",
+        detail: hasPurpose ? `${connector.records}; ${connector.purpose}` : "Describe which records the agent will read and why.",
+      },
+      {
+        code: "evidence",
+        label: "Knowledge evidence",
+        status: connectorDocuments.length ? "pass" : "warn",
+        detail: connectorDocuments.length
+          ? `${connectorDocuments.length} Knowledge Base document(s) mention this source.`
+          : "Upload API docs, SOPs, policy notes, or sample exports for this source.",
+      },
+      {
+        code: "production_gate",
+        label: "Pilot gate",
+        status: productionReady ? "pass" : sandboxReady ? "warn" : "fail",
+        detail: productionReady
+          ? "Ready for controlled production pilot."
+          : sandboxReady
+            ? "Safe for sandbox pilot; production approval still needed."
+            : "Blocked until status changes or access is granted.",
+      },
+    ];
+    const status = tests.some((test) => test.status === "fail") ? "fail" : tests.some((test) => test.status === "warn") ? "warn" : "pass";
+    const adapterMode = connectorDocuments.length
+      ? "local-document-connector"
+      : productionReady
+        ? "configured-source"
+        : "manual-readiness-model";
+    return {
+      name: connector.name || "Unnamed connector",
+      type: connector.type || "Enterprise system",
+      dataClass: connector.dataClass || "Internal",
+      score,
+      status,
+      adapterMode,
+      dryRunOnly: true,
+      tests,
+      evidence: connectorDocuments.map((document) => ({
+        id: document.id,
+        name: document.name,
+        chunkCount: document.chunkCount,
+        systems: document.systems || [],
+      })),
+      nextActions: tests
+        .filter((test) => test.status !== "pass")
+        .map((test) => `${test.label}: ${test.detail}`)
+        .slice(0, 4),
+    };
+  });
+  const counts = sourceChecks.reduce((acc, check) => ({ ...acc, [check.status]: (acc[check.status] || 0) + 1 }), {
+    pass: 0,
+    warn: 0,
+    fail: 0,
+  });
+  const averageScore = Math.round(sourceChecks.reduce((sum, check) => sum + check.score, 0) / Math.max(1, sourceChecks.length));
+  return {
+    id: randomUUID(),
+    generatedAt: new Date().toISOString(),
+    clientName: project.clientName || "Client",
+    workflowName: project.workflowName || "Workflow",
+    connectorCount: sourceChecks.length,
+    averageScore,
+    counts,
+    readyForPilot: sourceChecks.length > 0 && counts.fail === 0 && averageScore >= 70,
+    dryRunOnly: true,
+    sourceChecks,
+    failureCatalog: uniqueServer(sourceChecks.flatMap((check) => check.tests.filter((test) => test.status !== "pass").map((test) => test.code))),
   };
 }
 
@@ -2030,6 +2163,31 @@ async function handleApi(req, res, url) {
     });
     await writeDb(nextDb);
     sendJson(res, 200, { ok: true, query: body.query || "", results, graphSummary: { nodes: graph.nodeCount, edges: graph.edgeCount, lineage: graph.lineage } });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/connectors/test") {
+    const body = await readJsonBody(req);
+    const project = body.project || db.workspace?.project || {};
+    const report = buildConnectorTestReport(project, Array.isArray(db.documents) ? db.documents : []);
+    const nextDb = appendAudit(
+      {
+        ...db,
+        connectorTests: [report, ...(Array.isArray(db.connectorTests) ? db.connectorTests : [])].slice(0, 100),
+      },
+      "connectors.tested",
+      {
+        reportId: report.id,
+        workflowName: report.workflowName,
+        averageScore: report.averageScore,
+        pass: report.counts.pass,
+        warn: report.counts.warn,
+        fail: report.counts.fail,
+        readyForPilot: report.readyForPilot,
+      },
+    );
+    const saved = await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, connectorTest: report, connectorTestHistory: saved.connectorTests.slice(0, 10) });
     return;
   }
 

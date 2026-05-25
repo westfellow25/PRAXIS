@@ -79,6 +79,21 @@ create table connectors (
   created_at timestamptz not null default now()
 );
 
+create table connector_test_runs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references workspaces(id) on delete set null,
+  connector_count integer not null default 0,
+  average_score integer not null default 0,
+  pass_count integer not null default 0,
+  warn_count integer not null default 0,
+  fail_count integer not null default 0,
+  ready_for_pilot boolean not null default false,
+  dry_run_only boolean not null default true,
+  failure_catalog text[] not null default '{}',
+  source_checks jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table documents (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid references workspaces(id) on delete cascade,

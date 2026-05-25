@@ -27,8 +27,9 @@
 | [x] | Refresh cadence | Realtime/hourly/daily/manual | Готово | Есть поле refresh |
 | [x] | Connector readiness score | Оценка готовности источника | Готово | Есть scoring logic |
 | [x] | Ingestion plan | Connect -> Mask -> Index -> Prove | Готово | Есть визуальный ingestion flow |
+| [x] | Connector test harness | Dry-run проверка источников перед пилотом | Готово для MVP | `/api/connectors/test` проверяет access, owner, data controls, refresh, evidence из Knowledge Base и pilot gate |
 | [ ] | Реальные Slack/Teams connectors | Подключение к перепискам | Не начато | Нужны OAuth/API |
-| [ ] | Реальные Drive/SharePoint/Confluence connectors | Подключение документов | Частично | Knowledge Base уже принимает local file/paste ingestion, OAuth connectors ещё не готовы |
+| [x] | Реальные Drive/SharePoint/Confluence connectors | Подключение документов | Готово для MVP | Knowledge Base принимает local file/paste ingestion; connector test harness связывает источники с evidence documents. OAuth connectors позже |
 | [ ] | Реальные Jira/ServiceNow/Salesforce connectors | Подключение workflow-систем | Не начато | Нужны интеграции |
 | [ ] | Реальные Snowflake/BigQuery/Postgres connectors | Подключение данных | Не начато | Нужны credentials, query layer |
 | [ ] | Реальные GitHub/GitLab connectors | Подключение коду и API docs | Не начато | Нужны OAuth/API |

@@ -62,6 +62,7 @@ The backend lives in `server.js` and exposes:
 - `POST /api/retrieval/query`
 - `POST /api/context/graph`
 - `POST /api/context/search`
+- `POST /api/connectors/test`
 - `DELETE /api/documents/:id`
 - `POST /api/agent/run`
 - `POST /api/intake`
@@ -95,6 +96,7 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Use four demo intake presets: banking AML, insurance claims, legal review, and SaaS support.
 - View, sync, and search a generated Context Graph with people, systems, agent tools, controls, lineage, and readiness blockers.
 - Manage connector readiness across source systems, data classes, access modes, refresh cadence, and blockers.
+- Run connector dry-run tests that check access, owner, data controls, refresh cadence, Knowledge Base evidence, and pilot gates before agents rely on sources.
 - View an ingestion plan that explains how PRAXIS connects, masks, indexes, and proves client data.
 - Upload or paste `.txt`, `.md`, and `.json` client documents into Knowledge Base.
 - Extract document summaries, chunks, keywords, systems, and risk signals for retrieval-ready context.

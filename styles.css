@@ -1163,6 +1163,7 @@ p {
 .connector-board,
 .ingestion-flow,
 .connector-risk-map,
+.connector-test-results,
 .connector-editor {
   display: grid;
   gap: 10px;
@@ -1329,6 +1330,136 @@ p {
   color: var(--red);
   cursor: pointer;
   font-weight: 850;
+}
+
+.connector-test-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.connector-test-summary article,
+.connector-test-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(248, 245, 236, 0.72);
+  padding: 14px;
+}
+
+.connector-test-summary span,
+.connector-test-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.connector-test-summary strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 24px;
+}
+
+.connector-test-summary p,
+.connector-evidence {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.connector-test-list {
+  display: grid;
+  gap: 10px;
+}
+
+.connector-test-card {
+  display: grid;
+  gap: 12px;
+  border-left-width: 5px;
+}
+
+.connector-test-card.pass {
+  border-left-color: var(--green);
+}
+
+.connector-test-card.warn {
+  border-left-color: var(--gold);
+}
+
+.connector-test-card.fail {
+  border-left-color: var(--red);
+}
+
+.connector-test-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: start;
+}
+
+.connector-test-head strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.connector-test-head b {
+  border-radius: 999px;
+  background: #fffdf7;
+  color: var(--ink);
+  font-size: 12px;
+  padding: 7px 9px;
+}
+
+.connector-test-checks {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.connector-test-check {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+  padding: 10px;
+  min-height: 118px;
+}
+
+.connector-test-check span {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.connector-test-check strong {
+  width: fit-content;
+  border-radius: 999px;
+  font-size: 10px;
+  padding: 4px 6px;
+}
+
+.connector-test-check.pass strong {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.connector-test-check.warn strong {
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+.connector-test-check.fail strong {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.connector-test-check p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .document-actions {
@@ -2911,6 +3042,11 @@ p {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .connector-test-summary,
+  .connector-test-checks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .document-card {
     grid-template-columns: 1fr;
   }
@@ -3036,6 +3172,8 @@ p {
   .connector-row,
   .tool-editor-card,
   .connector-editor-card,
+  .connector-test-summary,
+  .connector-test-checks,
   .document-card,
   .ingestion-step,
   .trace-step,
