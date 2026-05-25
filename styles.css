@@ -812,6 +812,79 @@ p {
   color: #8a5c18;
 }
 
+.graph-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.graph-search input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+  color: var(--ink);
+  font: inherit;
+  padding: 9px 11px;
+}
+
+.graph-memory {
+  display: grid;
+  gap: 12px;
+}
+
+.graph-memory-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.graph-memory-summary article,
+.graph-result {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(248, 245, 236, 0.72);
+  padding: 12px;
+}
+
+.graph-memory-summary span,
+.graph-result span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.graph-memory-summary strong,
+.graph-result strong {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.graph-memory-summary p,
+.graph-result p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.graph-search-results {
+  display: grid;
+  gap: 10px;
+}
+
+.graph-result {
+  border-left: 4px solid var(--blue);
+}
+
+.graph-result.empty {
+  border-left-color: var(--gold);
+}
+
 .process-step,
 .workflow-step {
   position: relative;
@@ -2810,6 +2883,7 @@ p {
   .playbook-toolbar,
   .form-grid,
   .intake-help,
+  .graph-memory-summary,
   .context-lanes,
   .metrics-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2938,6 +3012,8 @@ p {
   .form-grid,
   .intake-help,
   .intake-presets,
+  .graph-search,
+  .graph-memory-summary,
   .context-lanes,
   .nav {
     grid-template-columns: 1fr;

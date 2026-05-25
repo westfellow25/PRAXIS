@@ -50,6 +50,7 @@ function createEmptyDb() {
     playbooks: [],
     runs: [],
     evalRuns: [],
+    contextGraphs: [],
     handoffs: [],
     documents: [],
     auditLog: [],
@@ -66,6 +67,7 @@ function migrateDb(db = {}) {
     playbooks: Array.isArray(db.playbooks) ? db.playbooks : [],
     runs: Array.isArray(db.runs) ? db.runs : [],
     evalRuns: Array.isArray(db.evalRuns) ? db.evalRuns : [],
+    contextGraphs: Array.isArray(db.contextGraphs) ? db.contextGraphs : [],
     handoffs: Array.isArray(db.handoffs) ? db.handoffs : [],
     documents: Array.isArray(db.documents) ? db.documents : [],
     auditLog: Array.isArray(db.auditLog) ? db.auditLog : [],
@@ -177,6 +179,7 @@ async function buildDatabaseStatus(db) {
     playbooks: Array.isArray(db.playbooks) ? db.playbooks.length : 0,
     runs: Array.isArray(db.runs) ? db.runs.length : 0,
     evalRuns: Array.isArray(db.evalRuns) ? db.evalRuns.length : 0,
+    contextGraphs: Array.isArray(db.contextGraphs) ? db.contextGraphs.length : 0,
     handoffs: Array.isArray(db.handoffs) ? db.handoffs.length : 0,
     documents: Array.isArray(db.documents) ? db.documents.length : 0,
     auditEvents: Array.isArray(db.auditLog) ? db.auditLog.length : 0,
@@ -864,6 +867,93 @@ function getServerConnectorHealth(project = {}) {
     total: connectors.length,
     ready: averageScore >= 70 && blocked === 0,
   };
+}
+
+function uniqueServer(values = []) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+function splitServerSystems(systemText = "") {
+  return String(systemText || "")
+    .split(/,|\/| and | & /i)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildServerContextGraph(project = {}, documents = []) {
+  const processSteps = Array.isArray(project.processSteps) ? project.processSteps : [];
+  const connectors = Array.isArray(project.connectors) ? project.connectors : [];
+  const tools = Array.isArray(project.tools) ? project.tools : [];
+  const evalCases = Array.isArray(project.evalCases) ? project.evalCases : [];
+  const governance = project.governance || {};
+  const roles = uniqueServer(processSteps.map((step) => step.owner));
+  const nodes = [
+    { id: "client", type: "organization", name: project.clientName || "Client", detail: "Client organization and executive sponsor." },
+    ...roles.map((role) => ({ id: `role:${role}`, type: "role", name: role, detail: "Owns or operates part of the workflow." })),
+    ...processSteps.map((step, index) => ({ id: `step:${index}`, type: "process_step", name: step.title || `Step ${index + 1}`, detail: `${step.owner || "Owner"} in ${step.system || "system"}: ${step.pain || "No pain described."}` })),
+    ...connectors.map((connector) => ({ id: `connector:${connector.name}`, type: "connector", name: connector.name, detail: `${connector.type}; ${connector.access}; ${connector.dataClass}; ${connector.status}.` })),
+    ...tools.map((tool) => ({ id: `tool:${tool.name}`, type: "tool", name: tool.name, detail: `${tool.code}; ${tool.auth}; ${tool.risk} risk.` })),
+    ...documents.slice(0, 30).map((document) => ({ id: `document:${document.id}`, type: "document", name: document.name, detail: `${document.chunkCount} chunks; ${(document.systems || []).join(", ")}.` })),
+    ...(governance.policies || []).map((policy) => ({ id: `policy:${policy.area}`, type: "policy", name: policy.area, detail: `${policy.severity}; ${policy.status}; ${policy.rule}` })),
+    ...evalCases.map((test) => ({ id: `eval:${test.id || test.name}`, type: "eval", name: test.name, detail: `${test.severity}; ${test.result || "pending"}; ${test.target || test.expected}` })),
+  ];
+
+  const edges = [
+    ...processSteps.flatMap((step, index) => [
+      { from: `role:${step.owner}`, to: `step:${index}`, type: "owns" },
+      ...splitServerSystems(step.system).map((system) => ({ from: `step:${index}`, to: `connector:${system}`, type: "uses_system" })),
+    ]),
+    ...connectors.flatMap((connector) =>
+      tools
+        .filter((tool) => `${tool.name} ${tool.copy} ${tool.code}`.toLowerCase().includes(String(connector.name || "").toLowerCase().split(" ")[0]))
+        .map((tool) => ({ from: `connector:${connector.name}`, to: `tool:${tool.name}`, type: "enables_tool" })),
+    ),
+    ...documents.flatMap((document) => (document.systems || []).map((system) => ({ from: `document:${document.id}`, to: `connector:${system}`, type: "documents_system" }))),
+    ...(governance.policies || []).map((policy) => ({ from: `policy:${policy.area}`, to: "client", type: "constrains" })),
+    ...evalCases.map((test) => ({ from: `eval:${test.id || test.name}`, to: "client", type: "validates" })),
+  ].filter((edge) => edge.from && edge.to);
+
+  const searchIndex = nodes.map((node) => ({
+    id: node.id,
+    type: node.type,
+    name: node.name,
+    detail: node.detail,
+    haystack: `${node.type} ${node.name} ${node.detail}`.toLowerCase(),
+  }));
+
+  return {
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+    clientName: project.clientName || "Client",
+    workflowName: project.workflowName || "Workflow",
+    nodeCount: nodes.length,
+    edgeCount: edges.length,
+    nodes,
+    edges,
+    lineage: [
+      "case_input",
+      "context_retrieval",
+      connectors.length ? "connectors" : "workspace_context",
+      tools.length ? "tool_fabric" : "no_tools_ready",
+      evalCases.length ? "eval_gate" : "eval_plan_missing",
+      governance.policies?.length ? "governance_gate" : "governance_missing",
+      "human_handoff_or_action",
+    ],
+    searchIndex,
+  };
+}
+
+function searchServerContextGraph(graph, query = "") {
+  const terms = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return [];
+  return graph.searchIndex
+    .map((item) => ({
+      ...item,
+      score: terms.reduce((sum, term) => sum + (item.haystack.includes(term) ? 1 : 0), 0),
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12);
 }
 
 function extractEvalKeywords(text = "") {
@@ -1908,6 +1998,38 @@ async function handleApi(req, res, url) {
       totalDocuments: documents.length,
       results,
     });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/context/graph") {
+    const body = await readJsonBody(req);
+    const project = body.project || db.workspace?.project || {};
+    const graph = buildServerContextGraph(project, Array.isArray(db.documents) ? db.documents : []);
+    const nextDb = appendAudit(
+      {
+        ...db,
+        contextGraphs: [graph, ...(Array.isArray(db.contextGraphs) ? db.contextGraphs : [])].slice(0, 50),
+      },
+      "context.graph.snapshot",
+      { graphId: graph.id, workflowName: graph.workflowName, nodes: graph.nodeCount, edges: graph.edgeCount },
+    );
+    const saved = await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, graph, graphHistory: saved.contextGraphs.slice(0, 10) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/context/search") {
+    const body = await readJsonBody(req);
+    const project = body.project || db.workspace?.project || {};
+    const graph = buildServerContextGraph(project, Array.isArray(db.documents) ? db.documents : []);
+    const results = searchServerContextGraph(graph, body.query || "");
+    const nextDb = appendAudit(db, "context.graph.search", {
+      query: body.query || "",
+      resultCount: results.length,
+      workflowName: graph.workflowName,
+    });
+    await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, query: body.query || "", results, graphSummary: { nodes: graph.nodeCount, edges: graph.edgeCount, lineage: graph.lineage } });
     return;
   }
 

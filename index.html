@@ -312,9 +312,26 @@
                 <div class="eyebrow">Context graph</div>
                 <h2>What PRAXIS knows about this deployment</h2>
               </div>
-              <span class="status-pill green" id="context-health">Graph ready</span>
+              <div class="panel-actions">
+                <button class="ghost-button small" id="sync-context-graph">Sync graph</button>
+                <span class="status-pill green" id="context-health">Graph ready</span>
+              </div>
             </div>
             <div class="context-lanes" id="context-graph"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Graph memory</div>
+                <h2>Backend snapshot, search, and lineage</h2>
+              </div>
+            </div>
+            <div class="graph-search">
+              <input id="context-search-input" type="search" placeholder="Search people, tools, systems, policies..." />
+              <button class="primary-button small" id="search-context-graph">Search graph</button>
+            </div>
+            <div class="graph-memory" id="graph-memory"></div>
           </article>
 
           <div class="two-column">

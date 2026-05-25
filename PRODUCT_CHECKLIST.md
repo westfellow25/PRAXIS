@@ -55,9 +55,9 @@
 | [x] | Agent tools | Инструменты агента | Готово | Тянется из Tool Fabric |
 | [x] | Controls & evals | Human review, eval gate, audit trail, bottleneck | Готово | Есть readiness checklist |
 | [x] | Readiness blockers | Что мешает production | Готово | Есть статус readiness |
-| [ ] | Реальный graph database | Neo4j/TypeDB/Postgres graph | Не начато | Сейчас DOM/JS model |
+| [x] | Реальный graph database | Neo4j/TypeDB/Postgres graph | Готово для MVP | `/api/context/graph` сохраняет backend graph snapshots; `schema.sql` содержит context_graph_snapshots |
 | [ ] | Автоматическое построение из корпоративных данных | Mining из Slack/docs/tickets/API | Частично | Документы можно загрузить вручную; автоматический mining из SaaS-систем ещё не готов |
-| [ ] | Semantic search over graph | Поиск по процессам/людям/решениям | Не начато | Нужен backend/index |
+| [x] | Semantic search over graph | Поиск по процессам/людям/решениям | Готово для MVP | `/api/context/search` ищет по graph search index; embeddings позже |
 
 ## 5. Workflow Mining Layer
 
@@ -171,7 +171,7 @@
 
 | Галочка | Moat | Что должно быть | Статус | Комментарий |
 |---|---|---|---|---|
-| [x] | Context Graph как память transformation | Карта процессов и систем | Частично | Есть модель, нет backend/graph DB |
+| [x] | Context Graph как память transformation | Карта процессов и систем | Готово для MVP | Есть UI graph, backend snapshots, search, lineage и Postgres-ready schema |
 | [x] | Agent-ready tools | Безопасные API для агентов | Готово для MVP | Есть design layer, OpenAPI import, MCP scaffold, sandbox dry-run и failure catalog; production API execution позже |
 | [x] | Eval library | Библиотека тестов по индустриям | Частично | Есть templates, нет реальной базы |
 | [x] | Playbook marketplace | Повторяемые deployment-шаблоны | Частично | Есть local library, нет marketplace |

@@ -279,8 +279,8 @@
       </section>
 
       <section class="stats">
-        <article class="stat"><span>Готово</span><strong>19</strong></article>
-        <article class="stat"><span>Частично</span><strong>3</strong></article>
+        <article class="stat"><span>Готово</span><strong>20</strong></article>
+        <article class="stat"><span>Частично</span><strong>2</strong></article>
         <article class="stat"><span>Не начато</span><strong>4</strong></article>
         <article class="stat"><span>Следующий фокус</span><strong>P0</strong></article>
       </section>
@@ -338,9 +338,9 @@
             <span>Retrieval</span><strong>Context retrieval tool</strong><span class="badge green">Готово</span>
             <p>`/api/retrieval/query` ищет top chunks + citations.</p><p>Pilot Console использует найденные документы в evidence packet.</p><span class="priority">P0</span>
           </div>
-          <div class="row orange">
-            <span>Context Graph</span><strong>Persistent graph memory</strong><span class="badge orange">Частично</span>
-            <p>Graph строится в UI из process/connectors/docs/tools.</p><p>Сохранять graph nodes/edges в DB, добавить graph search и lineage.</p><span class="priority">P1</span>
+          <div class="row green">
+            <span>Context Graph</span><strong>Persistent graph memory</strong><span class="badge green">Готово</span>
+            <p>Graph строится в UI и сохраняется через `/api/context/graph`; `/api/context/search` ищет по nodes/edges; lineage показывается в UI.</p><p>Позже: embeddings / graph DB engine.</p><span class="priority">P1</span>
           </div>
           <div class="row orange">
             <span>Connectors</span><strong>Real source connectors</strong><span class="badge orange">Частично</span>

@@ -50,6 +50,20 @@ create table database_backups (
   created_at timestamptz not null default now()
 );
 
+create table context_graph_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references workspaces(id) on delete set null,
+  client_name text not null,
+  workflow_name text not null,
+  node_count integer not null default 0,
+  edge_count integer not null default 0,
+  nodes jsonb not null default '[]'::jsonb,
+  edges jsonb not null default '[]'::jsonb,
+  lineage text[] not null default '{}',
+  search_index jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table connectors (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces(id) on delete cascade,
@@ -267,4 +281,5 @@ create index pilot_runs_workspace_idx on pilot_runs(workspace_id);
 create index handoffs_workspace_idx on handoffs(workspace_id);
 create index handoffs_status_idx on handoffs(status);
 create index database_backups_org_idx on database_backups(organization_id);
+create index context_graph_snapshots_workspace_idx on context_graph_snapshots(workspace_id);
 create index audit_events_workspace_idx on audit_events(workspace_id);

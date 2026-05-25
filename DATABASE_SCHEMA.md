@@ -17,6 +17,7 @@ The Postgres-ready draft is in `schema.sql`.
   "playbooks": [],
   "runs": [],
   "evalRuns": [],
+  "contextGraphs": [],
   "handoffs": [],
   "documents": [],
   "auditLog": [],
@@ -45,6 +46,7 @@ The Postgres-ready draft is in `schema.sql`.
       "playbooks": 2,
       "runs": 12,
       "evalRuns": 5,
+      "contextGraphs": 3,
       "handoffs": 4,
       "documents": 3,
       "auditEvents": 42
@@ -328,6 +330,27 @@ Documents are ingested from the Knowledge Base screen through `POST /api/documen
       "citation": "aml-policy.md#chunk-001"
     }
   ]
+}
+```
+
+## context graph response
+
+`POST /api/context/graph` persists a backend graph snapshot with nodes, edges, lineage, and a search index. `POST /api/context/search` searches the current graph across people, process steps, connectors, tools, documents, policies, and evals.
+
+```json
+{
+  "ok": true,
+  "graph": {
+    "id": "uuid",
+    "clientName": "Northstar Bank",
+    "workflowName": "AML Alert Briefing",
+    "nodeCount": 32,
+    "edgeCount": 41,
+    "nodes": [],
+    "edges": [],
+    "lineage": ["case_input", "context_retrieval", "connectors", "tool_fabric", "eval_gate", "governance_gate", "human_handoff_or_action"]
+  },
+  "graphHistory": []
 }
 ```
 

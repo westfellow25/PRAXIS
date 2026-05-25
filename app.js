@@ -18,6 +18,8 @@ const state = {
   telemetry: null,
   databaseStatus: null,
   evalHistory: [],
+  contextGraphSnapshot: null,
+  contextGraphSearchResults: [],
   playbookSearch: "",
   documentSearch: "",
   retrieval: { query: "", results: [] },
@@ -2223,6 +2225,98 @@ function renderContextGraph() {
       `,
     )
     .join("");
+  renderGraphMemory();
+}
+
+function renderGraphMemory() {
+  const target = document.querySelector("#graph-memory");
+  if (!target) return;
+  const snapshot = state.contextGraphSnapshot;
+  const results = state.contextGraphSearchResults || [];
+  target.innerHTML = `
+    <div class="graph-memory-summary">
+      <article>
+        <span>Snapshot</span>
+        <strong>${snapshot ? `${snapshot.nodeCount} nodes` : "Not synced"}</strong>
+        <p>${snapshot ? `${snapshot.edgeCount} edges; ${snapshot.lineage.length} lineage stages.` : "Click Sync graph to persist the current context graph into backend memory."}</p>
+      </article>
+      <article>
+        <span>Lineage</span>
+        <strong>${snapshot ? snapshot.lineage.at(-1) : "No lineage"}</strong>
+        <p>${snapshot ? snapshot.lineage.join(" -> ") : "Backend lineage appears after graph sync."}</p>
+      </article>
+    </div>
+    <div class="graph-search-results">
+      ${
+        results.length
+          ? results
+              .map(
+                (item) => `
+                  <article class="graph-result">
+                    <span>${escapeHtml(item.type)}</span>
+                    <strong>${escapeHtml(item.name)}</strong>
+                    <p>${escapeHtml(item.detail)}</p>
+                  </article>
+                `,
+              )
+              .join("")
+          : `<article class="graph-result empty"><strong>No search results yet</strong><p>Search after syncing the graph to find systems, owners, tools, policies, and evals.</p></article>`
+      }
+    </div>
+  `;
+}
+
+async function syncContextGraph() {
+  const button = document.querySelector("#sync-context-graph");
+  button.disabled = true;
+  button.textContent = "Syncing";
+  try {
+    const response = await apiRequest("/context/graph", {
+      method: "POST",
+      body: JSON.stringify({ project: state.project }),
+    });
+    state.contextGraphSnapshot = response.graph || null;
+    state.backendOnline = true;
+    setStorageStatus(`Graph synced ${state.contextGraphSnapshot.nodeCount} nodes`, "green");
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("Context graph backend unavailable", error);
+    setStorageStatus("Graph sync failed", "amber");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Sync graph";
+    renderGraphMemory();
+  }
+}
+
+async function searchContextGraph() {
+  const query = document.querySelector("#context-search-input").value.trim();
+  if (!query) {
+    state.contextGraphSearchResults = [];
+    renderGraphMemory();
+    return;
+  }
+  try {
+    const response = await apiRequest("/context/search", {
+      method: "POST",
+      body: JSON.stringify({ project: state.project, query }),
+    });
+    state.contextGraphSearchResults = response.results || [];
+    if (!state.contextGraphSnapshot && response.graphSummary) {
+      state.contextGraphSnapshot = {
+        nodeCount: response.graphSummary.nodes,
+        edgeCount: response.graphSummary.edges,
+        lineage: response.graphSummary.lineage,
+      };
+    }
+    state.backendOnline = true;
+    setStorageStatus(`${state.contextGraphSearchResults.length} graph results`, "green");
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("Context graph search unavailable", error);
+    setStorageStatus("Graph search failed", "amber");
+  }
+  renderGraphMemory();
 }
 
 function renderConnectors() {
@@ -4997,6 +5091,11 @@ document.querySelectorAll("[data-intake-preset]").forEach((button) => {
   button.addEventListener("click", () => loadIntakePreset(button.dataset.intakePreset));
 });
 document.querySelector("#add-step").addEventListener("click", addProcessStep);
+document.querySelector("#sync-context-graph").addEventListener("click", syncContextGraph);
+document.querySelector("#search-context-graph").addEventListener("click", searchContextGraph);
+document.querySelector("#context-search-input").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") searchContextGraph();
+});
 document.querySelector("#add-connector").addEventListener("click", addConnector);
 document.querySelector("#document-files").addEventListener("change", ingestDocumentFiles);
 document.querySelector("#ingest-document-text").addEventListener("click", ingestPastedDocument);
