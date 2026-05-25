@@ -18,7 +18,62 @@ The Postgres-ready draft is in `schema.sql`.
   "runs": [],
   "handoffs": [],
   "documents": [],
-  "auditLog": []
+  "auditLog": [],
+  "migrations": []
+}
+```
+
+## database status response
+
+`GET /api/database/status` reports the local persistence layer health: schema version, file size, collection counts, migration metadata, and the latest JSON backups.
+
+```json
+{
+  "ok": true,
+  "database": {
+    "ok": true,
+    "schemaVersion": 2,
+    "latestSchemaVersion": 2,
+    "databasePath": "data/praxis-db.json",
+    "file": {
+      "exists": true,
+      "sizeBytes": 123456,
+      "modifiedAt": "ISO timestamp"
+    },
+    "collections": {
+      "playbooks": 2,
+      "runs": 12,
+      "handoffs": 4,
+      "documents": 3,
+      "auditEvents": 42
+    },
+    "migrations": [],
+    "backups": [],
+    "backupCount": 0,
+    "checks": [
+      {
+        "name": "schema_version",
+        "passed": true
+      }
+    ]
+  }
+}
+```
+
+## database backup response
+
+`POST /api/database/backup` writes a timestamped copy of `data/praxis-db.json` into `data/backups/` and appends a `database.backup.created` audit event.
+
+```json
+{
+  "ok": true,
+  "backup": {
+    "name": "2026-05-25T10-12-00-000Z-manual-ui.json",
+    "path": "data/backups/2026-05-25T10-12-00-000Z-manual-ui.json",
+    "sizeBytes": 123456,
+    "createdAt": "ISO timestamp"
+  },
+  "database": {}
 }
 ```
 

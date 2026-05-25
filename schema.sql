@@ -32,6 +32,24 @@ create table workspaces (
   updated_at timestamptz not null default now()
 );
 
+create table database_migrations (
+  id text primary key,
+  from_version integer,
+  to_version integer not null,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create table database_backups (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete set null,
+  file_name text not null,
+  storage_uri text not null,
+  size_bytes integer not null default 0,
+  reason text,
+  created_at timestamptz not null default now()
+);
+
 create table connectors (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces(id) on delete cascade,
@@ -231,4 +249,5 @@ create index eval_cases_workspace_idx on eval_cases(workspace_id);
 create index pilot_runs_workspace_idx on pilot_runs(workspace_id);
 create index handoffs_workspace_idx on handoffs(workspace_id);
 create index handoffs_status_idx on handoffs(status);
+create index database_backups_org_idx on database_backups(organization_id);
 create index audit_events_workspace_idx on audit_events(workspace_id);

@@ -43,6 +43,8 @@ No package install is required for this version. The server uses only built-in N
 The backend lives in `server.js` and exposes:
 
 - `GET /api/health`
+- `GET /api/database/status`
+- `POST /api/database/backup`
 - `GET /api/workspace`
 - `PUT /api/workspace`
 - `GET /api/playbooks`
@@ -112,6 +114,8 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Save the current workspace as a reusable playbook.
 - Search playbooks and clone a template back into the active workspace.
 - Save the workspace to browser local storage.
+- Inspect local database health, schema version, collection counts, file size, migrations, and backups.
+- Create manual JSON database backups from the Workspace editor.
 - Export the workspace as JSON.
 - Import a previously exported workspace JSON file.
 - Add, edit, and delete process-map steps.

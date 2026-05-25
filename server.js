@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -25,6 +25,8 @@ loadDotEnv();
 
 const DATA_DIR = join(ROOT, "data");
 const DB_PATH = join(DATA_DIR, "praxis-db.json");
+const BACKUP_DIR = join(DATA_DIR, "backups");
+const DB_SCHEMA_VERSION = 2;
 const PORT = Number(process.env.PORT || 4173);
 
 const mimeTypes = {
@@ -41,7 +43,7 @@ const mimeTypes = {
 
 function createEmptyDb() {
   return {
-    schemaVersion: 1,
+    schemaVersion: DB_SCHEMA_VERSION,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     workspace: null,
@@ -50,14 +52,51 @@ function createEmptyDb() {
     handoffs: [],
     documents: [],
     auditLog: [],
+    migrations: [],
   };
+}
+
+function migrateDb(db = {}) {
+  const empty = createEmptyDb();
+  const migrated = {
+    ...empty,
+    ...db,
+    schemaVersion: Number(db.schemaVersion) || 1,
+    playbooks: Array.isArray(db.playbooks) ? db.playbooks : [],
+    runs: Array.isArray(db.runs) ? db.runs : [],
+    handoffs: Array.isArray(db.handoffs) ? db.handoffs : [],
+    documents: Array.isArray(db.documents) ? db.documents : [],
+    auditLog: Array.isArray(db.auditLog) ? db.auditLog : [],
+    migrations: Array.isArray(db.migrations) ? db.migrations : [],
+  };
+
+  if (migrated.schemaVersion < 2) {
+    migrated.migrations = [
+      {
+        id: "002-operational-db-metadata",
+        from: migrated.schemaVersion,
+        to: 2,
+        createdAt: new Date().toISOString(),
+        note: "Added migration metadata, database status, and backup support.",
+      },
+      ...migrated.migrations,
+    ];
+    migrated.schemaVersion = 2;
+  }
+
+  return migrated;
 }
 
 async function readDb() {
   await mkdir(DATA_DIR, { recursive: true });
   try {
     const raw = await readFile(DB_PATH, "utf8");
-    return { ...createEmptyDb(), ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    const migrated = migrateDb(parsed);
+    if (migrated.schemaVersion !== parsed.schemaVersion || !Array.isArray(parsed.migrations)) {
+      return writeDb(migrated);
+    }
+    return migrated;
   } catch (error) {
     if (error.code !== "ENOENT") {
       console.warn("Could not read DB; creating a clean one", error);
@@ -70,9 +109,94 @@ async function readDb() {
 
 async function writeDb(db) {
   await mkdir(DATA_DIR, { recursive: true });
-  const nextDb = { ...db, updatedAt: new Date().toISOString() };
+  const nextDb = { ...migrateDb(db), updatedAt: new Date().toISOString() };
   await writeFile(DB_PATH, JSON.stringify(nextDb, null, 2), "utf8");
   return nextDb;
+}
+
+async function getDbFileStats() {
+  try {
+    const dbStat = await stat(DB_PATH);
+    return {
+      exists: true,
+      sizeBytes: dbStat.size,
+      modifiedAt: dbStat.mtime.toISOString(),
+    };
+  } catch (error) {
+    return {
+      exists: false,
+      sizeBytes: 0,
+      modifiedAt: null,
+    };
+  }
+}
+
+async function listDbBackups() {
+  await mkdir(BACKUP_DIR, { recursive: true });
+  const files = await readdir(BACKUP_DIR, { withFileTypes: true });
+  const backups = await Promise.all(
+    files
+      .filter((file) => file.isFile() && file.name.endsWith(".json"))
+      .map(async (file) => {
+        const filePath = join(BACKUP_DIR, file.name);
+        const fileStat = await stat(filePath);
+        return {
+          name: file.name,
+          sizeBytes: fileStat.size,
+          createdAt: fileStat.birthtime.toISOString(),
+          modifiedAt: fileStat.mtime.toISOString(),
+        };
+      }),
+  );
+  return backups.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+}
+
+async function createDbBackup(reason = "manual") {
+  await mkdir(BACKUP_DIR, { recursive: true });
+  await readDb();
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const safeReason = String(reason || "manual").replace(/[^a-z0-9-]+/gi, "-").replace(/^-|-$/g, "").slice(0, 40) || "manual";
+  const fileName = `${stamp}-${safeReason}.json`;
+  const backupPath = join(BACKUP_DIR, fileName);
+  await copyFile(DB_PATH, backupPath);
+  const backupStat = await stat(backupPath);
+  return {
+    name: fileName,
+    path: backupPath,
+    sizeBytes: backupStat.size,
+    createdAt: backupStat.birthtime.toISOString(),
+  };
+}
+
+async function buildDatabaseStatus(db) {
+  const file = await getDbFileStats();
+  const backups = await listDbBackups();
+  const collections = {
+    playbooks: Array.isArray(db.playbooks) ? db.playbooks.length : 0,
+    runs: Array.isArray(db.runs) ? db.runs.length : 0,
+    handoffs: Array.isArray(db.handoffs) ? db.handoffs.length : 0,
+    documents: Array.isArray(db.documents) ? db.documents.length : 0,
+    auditEvents: Array.isArray(db.auditLog) ? db.auditLog.length : 0,
+  };
+  const checks = [
+    { name: "schema_version", passed: Number(db.schemaVersion) === DB_SCHEMA_VERSION },
+    { name: "db_file_exists", passed: file.exists },
+    { name: "workspace_shape", passed: db.workspace === null || typeof db.workspace === "object" },
+    { name: "postgres_schema_present", passed: existsSync(join(ROOT, "schema.sql")) },
+    { name: "backup_directory_ready", passed: true },
+  ];
+  return {
+    ok: checks.every((check) => check.passed),
+    schemaVersion: db.schemaVersion,
+    latestSchemaVersion: DB_SCHEMA_VERSION,
+    databasePath: DB_PATH,
+    file,
+    collections,
+    migrations: Array.isArray(db.migrations) ? db.migrations.slice(0, 8) : [],
+    backups: backups.slice(0, 10),
+    backupCount: backups.length,
+    checks,
+  };
 }
 
 function appendAudit(db, event, detail = {}) {
@@ -1375,6 +1499,28 @@ async function handleApi(req, res, url) {
       version: "0.2.0",
       database: DB_PATH,
       updatedAt: db.updatedAt,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/database/status") {
+    sendJson(res, 200, { ok: true, database: await buildDatabaseStatus(db) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/database/backup") {
+    const body = await readJsonBody(req);
+    const backup = await createDbBackup(body.reason || "manual");
+    const nextDb = appendAudit(db, "database.backup.created", {
+      backup: backup.name,
+      sizeBytes: backup.sizeBytes,
+      reason: body.reason || "manual",
+    });
+    const saved = await writeDb(nextDb);
+    sendJson(res, 201, {
+      ok: true,
+      backup,
+      database: await buildDatabaseStatus(saved),
     });
     return;
   }

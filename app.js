@@ -15,6 +15,7 @@ const state = {
   handoffs: [],
   handoffAlerts: null,
   telemetry: null,
+  databaseStatus: null,
   playbookSearch: "",
   documentSearch: "",
   retrieval: { query: "", results: [] },
@@ -921,15 +922,17 @@ async function apiRequest(path, options = {}) {
 
 async function hydrateFromBackend() {
   try {
-    const [workspaceResponse, playbooksResponse, documentsResponse, handoffsResponse, handoffAlertsResponse, telemetryResponse] = await Promise.all([
+    const [workspaceResponse, playbooksResponse, documentsResponse, handoffsResponse, handoffAlertsResponse, telemetryResponse, databaseResponse] = await Promise.all([
       apiRequest("/workspace"),
       apiRequest("/playbooks"),
       apiRequest("/documents"),
       apiRequest("/handoffs"),
       apiRequest("/handoffs/alerts"),
       apiRequest("/telemetry"),
+      apiRequest("/database/status"),
     ]);
     state.backendOnline = true;
+    state.databaseStatus = databaseResponse.database || null;
 
     if (workspaceResponse.workspace?.project) {
       state.project = normalizeProject(workspaceResponse.workspace.project);
@@ -972,6 +975,7 @@ async function hydrateFromBackend() {
     state.backendOnline = false;
     console.info("Backend unavailable; using local browser storage", error);
     setStorageStatus("Local draft", "");
+    renderDatabaseStatus();
   }
 }
 
@@ -992,6 +996,7 @@ async function syncWorkspaceToBackend() {
     });
     state.backendOnline = true;
     setStorageStatus(response.updatedAt ? "Backend saved" : "Saved", "green");
+    await refreshDatabaseStatus();
   } catch (error) {
     state.backendOnline = false;
     console.info("Workspace backend sync skipped", error);
@@ -1354,6 +1359,55 @@ function setStorageStatus(text, variant = "") {
   if (!element) return;
   element.textContent = text;
   element.className = `status-pill ${variant}`.trim();
+}
+
+function renderDatabaseStatus() {
+  const element = document.querySelector("#database-status");
+  if (!element) return;
+  const status = state.databaseStatus;
+  if (!status) {
+    element.textContent = state.backendOnline ? "DB checking" : "DB offline";
+    element.className = `status-pill ${state.backendOnline ? "amber" : ""}`.trim();
+    return;
+  }
+  const sizeKb = Math.max(1, Math.round((status.file?.sizeBytes || 0) / 1024));
+  element.textContent = `DB v${status.schemaVersion} · ${sizeKb}KB · ${status.backupCount || 0} backups`;
+  element.className = `status-pill ${status.ok ? "green" : "amber"}`.trim();
+}
+
+async function refreshDatabaseStatus() {
+  try {
+    const response = await apiRequest("/database/status");
+    state.databaseStatus = response.database || null;
+    state.backendOnline = true;
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("Database status unavailable", error);
+  }
+  renderDatabaseStatus();
+}
+
+async function backupDatabase() {
+  const button = document.querySelector("#backup-database");
+  button.disabled = true;
+  button.textContent = "Backing up";
+  try {
+    const response = await apiRequest("/database/backup", {
+      method: "POST",
+      body: JSON.stringify({ reason: "manual-ui" }),
+    });
+    state.databaseStatus = response.database || null;
+    state.backendOnline = true;
+    setStorageStatus(`Backup ${response.backup.name.slice(0, 10)}`, "green");
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("Database backup unavailable", error);
+    setStorageStatus("Backup failed", "amber");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Backup DB";
+    renderDatabaseStatus();
+  }
 }
 
 function escapeHtml(value) {
@@ -4784,6 +4838,7 @@ function renderAll(options = {}) {
   renderDeploymentPlan();
   renderReadout();
   renderPlaybooks();
+  renderDatabaseStatus();
   if (!options.keepFormValues) {
     populateProjectForm();
     populateValueForm();
@@ -4806,6 +4861,7 @@ document.querySelector("#save-workspace").addEventListener("click", () => {
   applyProjectForm();
   saveProject();
 });
+document.querySelector("#backup-database").addEventListener("click", backupDatabase);
 document.querySelector("#export-workspace").addEventListener("click", exportWorkspace);
 document.querySelector("#import-workspace").addEventListener("change", importWorkspace);
 document.querySelector("#generate-intake").addEventListener("click", generateWorkspaceFromIntake);
