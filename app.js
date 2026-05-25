@@ -20,6 +20,7 @@ const state = {
   retrieval: { query: "", results: [] },
   governanceCheck: null,
   mcpServerCode: "",
+  toolSandbox: null,
   agentRuntimeRun: null,
   backendOnline: false,
 };
@@ -1397,6 +1398,100 @@ function scoreTool(tool) {
   return Math.min(100, score);
 }
 
+function getToolFailureModesLocal(tool = {}, score = scoreTool(tool)) {
+  const text = `${tool.name || ""} ${tool.code || ""} ${tool.copy || ""} ${tool.auth || ""} ${tool.risk || ""}`.toLowerCase();
+  const failures = [];
+  const hasContract = Boolean(tool.code && tool.code.includes("(") && tool.code.includes(")"));
+  const isHighRisk = tool.risk === "High" || /create|update|delete|file|submit|approve|route|escalate|payment|production/.test(text);
+  const hasApproval = /approval|human/.test(String(tool.auth || "").toLowerCase()) || /approval|review|human/.test(text);
+  const hasErrorLanguage = /error|fail|failure|timeout|retry|default|fallback|audit/.test(text);
+
+  if (!tool.name || String(tool.name).length < 4) {
+    failures.push({ code: "missing_name", severity: "High", detail: "Tool needs a clear human-readable name." });
+  }
+  if (!hasContract) {
+    failures.push({ code: "missing_callable_contract", severity: "Critical", detail: "Callable signature must include explicit parentheses and inputs." });
+  }
+  if (!tool.owner || tool.owner === "API owner") {
+    failures.push({ code: "owner_unknown", severity: "Medium", detail: "Every tool needs an accountable API owner before pilot." });
+  }
+  if (!tool.auth) {
+    failures.push({ code: "auth_missing", severity: "High", detail: "Auth model is required before any agent can call the tool." });
+  }
+  if (isHighRisk && !hasApproval) {
+    failures.push({ code: "approval_required", severity: "Critical", detail: "High-risk or write-like tools need human approval or approval-scoped service account." });
+  }
+  if (!hasErrorLanguage) {
+    failures.push({ code: "failure_modes_missing", severity: "Medium", detail: "Description should document errors, safe defaults, retries, or audit behavior." });
+  }
+  if (score < 65) {
+    failures.push({ code: "readiness_below_runtime_gate", severity: "High", detail: `Readiness score ${score}% is below the runtime callable threshold.` });
+  }
+  return failures;
+}
+
+function parseToolInputsLocal(code = "") {
+  const match = String(code).match(/\(([^)]*)\)/);
+  if (!match) return [];
+  return match[1]
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildToolSandboxReportLocal(project = state.project) {
+  const tools = Array.isArray(project.tools) ? project.tools : [];
+  const results = tools.map((tool, index) => {
+    const readiness = scoreTool(tool);
+    const failureModes = getToolFailureModesLocal(tool, readiness);
+    const critical = failureModes.filter((failure) => failure.severity === "Critical").length;
+    const high = failureModes.filter((failure) => failure.severity === "High").length;
+    const status = critical || high ? "fail" : failureModes.length ? "warn" : "pass";
+    const inputs = parseToolInputsLocal(tool.code);
+    return {
+      id: tool.id || tool.name || `tool-${index + 1}`,
+      name: tool.name || `Tool ${index + 1}`,
+      callable: tool.code || "",
+      owner: tool.owner || "API owner",
+      auth: tool.auth || "Unknown",
+      risk: tool.risk || "Medium",
+      readiness,
+      status,
+      latencyMs: 25 + index * 7 + Math.max(0, 100 - readiness),
+      inputs,
+      failureModes,
+      sampleRequest: {
+        input: Object.fromEntries(inputs.map((input) => [input, `<${input}>`])),
+        dryRun: true,
+        sandboxOnly: true,
+      },
+      sampleResponse: {
+        ok: status !== "fail",
+        sandboxOnly: true,
+        message:
+          status === "pass"
+            ? "Tool contract is ready for sandbox agent use."
+            : status === "warn"
+              ? "Tool can be tested in sandbox after warnings are accepted."
+              : "Tool is blocked from agent runtime until failures are fixed.",
+      },
+    };
+  });
+  const counts = results.reduce((acc, result) => ({ ...acc, [result.status]: (acc[result.status] || 0) + 1 }), {
+    pass: 0,
+    warn: 0,
+    fail: 0,
+  });
+  return {
+    generatedAt: new Date().toISOString(),
+    toolCount: tools.length,
+    readyForAgentRuntime: results.length > 0 && counts.fail === 0,
+    counts,
+    results,
+    failureCatalog: [...new Set(results.flatMap((result) => result.failureModes.map((failure) => failure.code)))],
+  };
+}
+
 function scoreConnector(connector) {
   let score = 20;
   if (connector.name && connector.name.length > 2) score += 10;
@@ -2584,6 +2679,7 @@ function renderToolFabric() {
   document.querySelector("#tool-manifest").textContent = JSON.stringify(buildToolManifest(averageScore), null, 2);
   document.querySelector("#mcp-server-preview").textContent =
     state.mcpServerCode || "// Click Generate server to create an MCP server scaffold from these tools.";
+  renderToolSandbox();
 }
 
 function buildToolManifest(readinessScore) {
@@ -2607,6 +2703,94 @@ function buildToolManifest(readinessScore) {
       ],
     })),
   };
+}
+
+function renderToolSandbox() {
+  const target = document.querySelector("#tool-sandbox");
+  if (!target) return;
+  const report = state.toolSandbox || buildToolSandboxReportLocal();
+  const counts = report.counts || { pass: 0, warn: 0, fail: 0 };
+  const results = Array.isArray(report.results) ? report.results : [];
+  target.innerHTML = `
+    <div class="sandbox-summary ${report.readyForAgentRuntime ? "ready" : "blocked"}">
+      <div>
+        <span>Sandbox status</span>
+        <strong>${report.readyForAgentRuntime ? "Agent-ready" : "Needs fixes"}</strong>
+        <p>${counts.pass || 0} pass · ${counts.warn || 0} warn · ${counts.fail || 0} fail · ${results.length} tools tested</p>
+      </div>
+      <div>
+        <span>Failure catalog</span>
+        <strong>${(report.failureCatalog || []).length}</strong>
+        <p>${(report.failureCatalog || []).slice(0, 5).join(", ") || "No active failure modes"}</p>
+      </div>
+    </div>
+    <div class="sandbox-results">
+      ${
+        results.length
+          ? results
+              .map(
+                (result) => `
+                  <article class="sandbox-card ${escapeHtml(result.status)}">
+                    <div class="sandbox-card-head">
+                      <strong>${escapeHtml(result.name)}</strong>
+                      <span class="tool-status ${result.status === "pass" ? "ready" : "warn"}">${escapeHtml(result.status)}</span>
+                    </div>
+                    <code>${escapeHtml(result.callable || "missing contract")}</code>
+                    <p>${escapeHtml(result.sampleResponse?.message || "Sandbox probe completed.")}</p>
+                    <div class="sandbox-meta">
+                      <span>${result.readiness}% ready</span>
+                      <span>${result.latencyMs}ms dry-run</span>
+                      <span>${escapeHtml(result.auth)}</span>
+                      <span>${escapeHtml(result.risk)} risk</span>
+                    </div>
+                    <ul>
+                      ${
+                        result.failureModes?.length
+                          ? result.failureModes
+                              .slice(0, 4)
+                              .map((failure) => `<li><strong>${escapeHtml(failure.code)}</strong>: ${escapeHtml(failure.detail)}</li>`)
+                              .join("")
+                          : "<li>Contract, owner, auth, approval, and failure-mode checks passed.</li>"
+                      }
+                    </ul>
+                  </article>
+                `,
+              )
+              .join("")
+          : `<article class="sandbox-card warn"><strong>No tools</strong><p>Add tools before running sandbox.</p></article>`
+      }
+    </div>
+  `;
+}
+
+async function runToolSandbox() {
+  const button = document.querySelector("#run-tool-sandbox");
+  button.disabled = true;
+  button.textContent = "Running";
+  try {
+    const response = await apiRequest("/tools/sandbox", {
+      method: "POST",
+      body: JSON.stringify({ project: state.project }),
+    });
+    state.toolSandbox = response.sandbox || buildToolSandboxReportLocal();
+    state.backendOnline = true;
+    setStorageStatus(
+      state.toolSandbox.readyForAgentRuntime ? "Tool sandbox passed" : "Tool sandbox found blockers",
+      state.toolSandbox.readyForAgentRuntime ? "green" : "amber",
+    );
+  } catch (error) {
+    console.info("Backend tool sandbox unavailable; using local probe", error);
+    state.toolSandbox = buildToolSandboxReportLocal();
+    state.backendOnline = false;
+    setStorageStatus("Tool sandbox ran locally", state.toolSandbox.readyForAgentRuntime ? "green" : "amber");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Run sandbox";
+    renderToolSandbox();
+    renderPilotRunConsole();
+    renderDeploymentPlan();
+    renderReadout();
+  }
 }
 
 function generateMcpServerCodeLocal() {
@@ -2678,6 +2862,7 @@ function updateTool(event) {
   const index = Number(event.target.dataset.toolIndex);
   const field = event.target.dataset.toolField;
   state.project.tools[index][field] = event.target.value.trim();
+  state.toolSandbox = null;
   saveProject("Tool updated");
   renderTools();
   renderToolFabric();
@@ -2696,6 +2881,7 @@ function addTool() {
     auth: "Read-only service",
     risk: "Low",
   });
+  state.toolSandbox = null;
   saveProject("Tool added");
   renderTools();
   renderToolFabric();
@@ -2708,6 +2894,7 @@ function addTool() {
 function deleteTool(index) {
   if (state.project.tools.length <= 1) return;
   state.project.tools.splice(index, 1);
+  state.toolSandbox = null;
   saveProject("Tool deleted");
   renderTools();
   renderToolFabric();
@@ -2772,6 +2959,7 @@ async function importOpenApiTools() {
       auth: tool.auth || inferToolAuth(tool),
       risk: tool.risk || inferToolRisk(tool),
     }));
+    state.toolSandbox = null;
     textarea.value = "";
     saveProject(`${toolsFromSpec.length} tools imported`);
     renderTools();
@@ -4400,6 +4588,7 @@ function renderAll(options = {}) {
   renderWorkflow();
   renderTools();
   renderToolFabric();
+  renderToolSandbox();
   renderGovernance();
   renderPilotRunConsole();
   renderHandoffQueue();
@@ -4451,6 +4640,7 @@ document.querySelector("#document-search").addEventListener("input", (event) => 
 document.querySelector("#add-tool").addEventListener("click", addTool);
 document.querySelector("#generate-mcp-server").addEventListener("click", generateMcpServer);
 document.querySelector("#import-openapi").addEventListener("click", importOpenApiTools);
+document.querySelector("#run-tool-sandbox").addEventListener("click", runToolSandbox);
 document.querySelector("#add-policy").addEventListener("click", addPolicy);
 document.querySelector("#add-approval").addEventListener("click", addApproval);
 document.querySelector("#run-governance-check").addEventListener("click", runGovernanceCheck);

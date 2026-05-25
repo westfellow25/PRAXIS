@@ -92,6 +92,19 @@ create table tools (
   created_at timestamptz not null default now()
 );
 
+create table tool_sandbox_runs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  tool_count integer not null default 0,
+  pass_count integer not null default 0,
+  warn_count integer not null default 0,
+  fail_count integer not null default 0,
+  ready_for_agent_runtime boolean not null default false,
+  failure_catalog text[] not null default '{}',
+  results jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table governance_policies (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces(id) on delete cascade,
@@ -199,6 +212,7 @@ create index workspaces_org_idx on workspaces(organization_id);
 create index connectors_workspace_idx on connectors(workspace_id);
 create index documents_workspace_idx on documents(workspace_id);
 create index tools_workspace_idx on tools(workspace_id);
+create index tool_sandbox_runs_workspace_idx on tool_sandbox_runs(workspace_id);
 create index eval_cases_workspace_idx on eval_cases(workspace_id);
 create index pilot_runs_workspace_idx on pilot_runs(workspace_id);
 create index handoffs_workspace_idx on handoffs(workspace_id);

@@ -81,10 +81,10 @@
 | [x] | Risk level | Low/Medium/High | Готово | Есть поле risk |
 | [x] | Tool readiness score | Оценка готовности tool | Готово | Есть scoring |
 | [x] | MCP-style manifest | JSON preview tool contract | Готово | Есть manifest preview |
-| [x] | Реальный OpenAPI ingestion | Импорт OpenAPI specs | Частично | Paste OpenAPI JSON -> `/api/openapi/import` -> Tool Fabric rows; upload/codegen еще не готовы |
-| [x] | Реальный MCP server generation | Генерация MCP tools | Частично | `/api/mcp/generate` создаёт starter MCP server scaffold; реальные API stubs надо wiring вручную |
-| [ ] | Tool sandbox execution | Безопасный пробный вызов API | Не начато | Нужна runtime-инфраструктура |
-| [ ] | Error/failure mode catalog | Ошибки API и safe defaults | Не начато | Можно добавить как следующий слой |
+| [x] | Реальный OpenAPI ingestion | Импорт OpenAPI specs | Готово для MVP | Paste OpenAPI JSON -> `/api/openapi/import` -> Tool Fabric rows; upload/codegen позже |
+| [x] | Реальный MCP server generation | Генерация MCP tools | Готово для MVP | `/api/mcp/generate` создаёт starter MCP server scaffold; real API wiring позже |
+| [x] | Tool sandbox execution | Безопасный пробный вызов API | Готово для MVP | `/api/tools/sandbox` делает dry-run validation без внешних API calls |
+| [x] | Error/failure mode catalog | Ошибки API и safe defaults | Готово для MVP | Sandbox catalog ловит missing contract, auth, approval, owner, readiness и failure-mode gaps |
 
 ## 7. Agent Runtime
 
@@ -172,7 +172,7 @@
 | Галочка | Moat | Что должно быть | Статус | Комментарий |
 |---|---|---|---|---|
 | [x] | Context Graph как память transformation | Карта процессов и систем | Частично | Есть модель, нет backend/graph DB |
-| [x] | Agent-ready tools | Безопасные API для агентов | Частично | Есть design layer, нет реального execution |
+| [x] | Agent-ready tools | Безопасные API для агентов | Готово для MVP | Есть design layer, OpenAPI import, MCP scaffold, sandbox dry-run и failure catalog; production API execution позже |
 | [x] | Eval library | Библиотека тестов по индустриям | Частично | Есть templates, нет реальной базы |
 | [x] | Playbook marketplace | Повторяемые deployment-шаблоны | Частично | Есть local library, нет marketplace |
 | [x] | Governance | Безопасный enterprise deployment | Частично | Есть UI, approvals, audit checklist и pre-flight enforcement check; нет runtime OPA/secrets/masking |

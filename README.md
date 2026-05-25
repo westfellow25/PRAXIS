@@ -64,6 +64,7 @@ The backend lives in `server.js` and exposes:
 - `POST /api/evals/run`
 - `POST /api/openapi/import`
 - `POST /api/mcp/generate`
+- `POST /api/tools/sandbox`
 - `POST /api/governance/check`
 
 The local database is `data/praxis-db.json`.
@@ -94,6 +95,7 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Query document chunks through backend retrieval and show citations inside the Pilot Run Console evidence packet.
 - Paste OpenAPI JSON specs into Tool Fabric and turn operations into agent-ready tools.
 - Generate an MCP server scaffold from the current Tool Fabric.
+- Run Tool Sandbox dry-runs that validate callable contracts, owners, auth, approval requirements, readiness gates, and failure modes before agents use tools.
 - Score API/tool readiness and edit owner, auth model, risk, callable signatures, and descriptions.
 - Generate an MCP-style tool manifest preview.
 - Manage governance policies, approval gates, audit trail requirements, and governance readiness.

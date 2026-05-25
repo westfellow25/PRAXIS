@@ -275,6 +275,44 @@ Documents are ingested from the Knowledge Base screen through `POST /api/documen
 }
 ```
 
+## tool sandbox response
+
+`POST /api/tools/sandbox` performs a dry-run validation of Tool Fabric before the Agent Runtime can rely on those tools. It does not call external customer APIs yet. It checks callable contracts, owners, auth model, high-risk approval gates, readiness threshold, and failure-mode documentation.
+
+```json
+{
+  "ok": true,
+  "sandbox": {
+    "toolCount": 3,
+    "readyForAgentRuntime": false,
+    "counts": {
+      "pass": 1,
+      "warn": 1,
+      "fail": 1
+    },
+    "results": [
+      {
+        "name": "Get customer KYC",
+        "callable": "getCustomerKYC(customer_id)",
+        "status": "pass",
+        "readiness": 95,
+        "latencyMs": 30,
+        "failureModes": [],
+        "sampleRequest": {
+          "dryRun": true,
+          "sandboxOnly": true
+        },
+        "sampleResponse": {
+          "ok": true,
+          "sandboxOnly": true
+        }
+      }
+    ],
+    "failureCatalog": ["approval_required", "missing_callable_contract"]
+  }
+}
+```
+
 ## governance check response
 
 `POST /api/governance/check` runs a pre-flight policy check over the active project before a pilot is treated as production-ready.
@@ -353,6 +391,7 @@ When we graduate from JSON to Postgres, this maps cleanly into:
 - `process_steps`
 - `connectors`
 - `tools`
+- `tool_sandbox_runs`
 - `governance_policies`
 - `approval_gates`
 - `handoffs`

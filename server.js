@@ -521,6 +521,102 @@ function scoreServerTool(tool) {
   return Math.min(100, score);
 }
 
+function getToolFailureModes(tool = {}, score = scoreServerTool(tool)) {
+  const text = `${tool.name || ""} ${tool.code || ""} ${tool.copy || ""} ${tool.auth || ""} ${tool.risk || ""}`.toLowerCase();
+  const failures = [];
+  const hasContract = Boolean(tool.code && tool.code.includes("(") && tool.code.includes(")"));
+  const isHighRisk = tool.risk === "High" || /create|update|delete|file|submit|approve|route|escalate|payment|production/.test(text);
+  const hasApproval = /approval|human/.test(String(tool.auth || "").toLowerCase()) || /approval|review|human/.test(text);
+  const hasErrorLanguage = /error|fail|failure|timeout|retry|default|fallback|audit/.test(text);
+
+  if (!tool.name || String(tool.name).length < 4) {
+    failures.push({ code: "missing_name", severity: "High", detail: "Tool needs a clear human-readable name." });
+  }
+  if (!hasContract) {
+    failures.push({ code: "missing_callable_contract", severity: "Critical", detail: "Callable signature must include explicit parentheses and inputs." });
+  }
+  if (!tool.owner || tool.owner === "API owner") {
+    failures.push({ code: "owner_unknown", severity: "Medium", detail: "Every tool needs an accountable API owner before pilot." });
+  }
+  if (!tool.auth) {
+    failures.push({ code: "auth_missing", severity: "High", detail: "Auth model is required before any agent can call the tool." });
+  }
+  if (isHighRisk && !hasApproval) {
+    failures.push({ code: "approval_required", severity: "Critical", detail: "High-risk or write-like tools need human approval or approval-scoped service account." });
+  }
+  if (!hasErrorLanguage) {
+    failures.push({ code: "failure_modes_missing", severity: "Medium", detail: "Description should document errors, safe defaults, retries, or audit behavior." });
+  }
+  if (score < 65) {
+    failures.push({ code: "readiness_below_runtime_gate", severity: "High", detail: `Readiness score ${score}% is below the runtime callable threshold.` });
+  }
+
+  return failures;
+}
+
+function parseToolInputs(code = "") {
+  const match = String(code).match(/\(([^)]*)\)/);
+  if (!match) return [];
+  return match[1]
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildToolSandboxReport(project = {}) {
+  const tools = Array.isArray(project.tools) ? project.tools : [];
+  const results = tools.map((tool, index) => {
+    const score = scoreServerTool(tool);
+    const failures = getToolFailureModes(tool, score);
+    const critical = failures.filter((failure) => failure.severity === "Critical").length;
+    const high = failures.filter((failure) => failure.severity === "High").length;
+    const status = critical || high ? "fail" : failures.length ? "warn" : "pass";
+    const inputs = parseToolInputs(tool.code);
+    const latencyMs = 25 + index * 7 + Math.max(0, 100 - score);
+    return {
+      id: tool.id || toToolIdentifier(tool.name || tool.code || `tool-${index + 1}`),
+      name: tool.name || `Tool ${index + 1}`,
+      callable: tool.code || "",
+      owner: tool.owner || "API owner",
+      auth: tool.auth || "Unknown",
+      risk: tool.risk || "Medium",
+      readiness: score,
+      status,
+      latencyMs,
+      inputs,
+      failureModes: failures,
+      sampleRequest: {
+        input: Object.fromEntries(inputs.map((input) => [input, `<${input}>`])),
+        dryRun: true,
+        sandboxOnly: true,
+      },
+      sampleResponse: {
+        ok: status !== "fail",
+        sandboxOnly: true,
+        message:
+          status === "pass"
+            ? "Tool contract is ready for sandbox agent use."
+            : status === "warn"
+              ? "Tool can be tested in sandbox after warnings are accepted."
+              : "Tool is blocked from agent runtime until failures are fixed.",
+      },
+    };
+  });
+  const counts = results.reduce((acc, result) => ({ ...acc, [result.status]: (acc[result.status] || 0) + 1 }), {
+    pass: 0,
+    warn: 0,
+    fail: 0,
+  });
+  return {
+    generatedAt: new Date().toISOString(),
+    toolCount: tools.length,
+    readyForAgentRuntime: results.length > 0 && counts.fail === 0,
+    counts,
+    results,
+    failureCatalog: [...new Set(results.flatMap((result) => result.failureModes.map((failure) => failure.code)))],
+  };
+}
+
 function scoreServerConnector(connector) {
   let score = 20;
   if (connector.name) score += 12;
@@ -1462,6 +1558,23 @@ async function handleApi(req, res, url) {
     });
     await writeDb(nextDb);
     sendJson(res, 200, { ok: true, code, toolCount: tools.length });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/tools/sandbox") {
+    const body = await readJsonBody(req);
+    const project = body.project || db.workspace?.project || {};
+    const report = buildToolSandboxReport(project);
+    const nextDb = appendAudit(db, "tools.sandboxed", {
+      workflowName: project.workflowName,
+      toolCount: report.toolCount,
+      pass: report.counts.pass,
+      warn: report.counts.warn,
+      fail: report.counts.fail,
+      readyForAgentRuntime: report.readyForAgentRuntime,
+    });
+    await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, sandbox: report });
     return;
   }
 
