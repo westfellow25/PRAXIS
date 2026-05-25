@@ -175,7 +175,7 @@
 | [x] | Context Graph как память transformation | Карта процессов и систем | Готово для MVP | Есть UI graph, backend snapshots, search, lineage и Postgres-ready schema |
 | [x] | Agent-ready tools | Безопасные API для агентов | Готово для MVP | Есть design layer, OpenAPI import, MCP scaffold, sandbox dry-run и failure catalog; production API execution позже |
 | [x] | Eval library | Библиотека тестов по индустриям | Частично | Есть templates, нет реальной базы |
-| [x] | Playbook marketplace | Повторяемые deployment-шаблоны | Частично | Есть local library, нет marketplace |
+| [x] | Playbook marketplace | Повторяемые deployment-шаблоны | Готово для MVP | Есть local registry/marketplace: publish, version, fingerprint, quality score, usage count и reuse package |
 | [x] | Governance | Безопасный enterprise deployment | Готово для MVP | Есть UI, approvals, audit checklist, pre-flight check, runtime enforcement, masking и secrets manifest; production Vault/KMS позже |
 | [ ] | Cross-customer learning | Каждый deployment улучшает платформу | Не начато | Нужна hosted платформа и data model |
 | [ ] | Integration breadth | Много реальных connectors | Не начато | Нужна интеграционная команда |

@@ -15,6 +15,7 @@ The Postgres-ready draft is in `schema.sql`.
   "updatedAt": "ISO timestamp",
   "workspace": {},
   "playbooks": [],
+  "playbookRegistry": [],
   "runs": [],
   "evalRuns": [],
   "contextGraphs": [],
@@ -45,6 +46,7 @@ The Postgres-ready draft is in `schema.sql`.
     },
     "collections": {
       "playbooks": 2,
+      "playbookRegistry": 1,
       "runs": 12,
       "evalRuns": 5,
       "contextGraphs": 3,
@@ -124,6 +126,24 @@ Each playbook stores a reusable deployment pattern and an optional `projectSnaps
   },
   "source": "Saved workspace",
   "createdAt": "ISO timestamp",
+  "projectSnapshot": {}
+}
+```
+
+## playbook registry
+
+`POST /api/playbooks/publish` turns a saved playbook into a versioned marketplace package. `POST /api/playbooks/registry/use` increments package usage and returns the updated registry.
+
+```json
+{
+  "id": "published-uuid",
+  "name": "AML Alert Briefing",
+  "version": "1.0.0",
+  "marketplaceStatus": "published",
+  "fingerprint": "sha256...",
+  "qualityScore": 88,
+  "usageCount": 3,
+  "publishedAt": "ISO timestamp",
   "projectSnapshot": {}
 }
 ```
@@ -599,4 +619,5 @@ When we graduate from JSON to Postgres, this maps cleanly into:
 - `pilot_runs`
 - `run_trace_events`
 - `playbooks`
+- `playbook_registry`
 - `audit_events`

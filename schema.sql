@@ -276,6 +276,23 @@ create table playbooks (
   created_at timestamptz not null default now()
 );
 
+create table playbook_registry (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  playbook_id uuid references playbooks(id) on delete set null,
+  name text not null,
+  industry text,
+  version text not null,
+  fingerprint text not null,
+  quality_score integer not null default 0,
+  usage_count integer not null default 0,
+  marketplace_status text not null default 'published',
+  package jsonb not null default '{}'::jsonb,
+  published_at timestamptz not null default now(),
+  last_used_at timestamptz,
+  unique(organization_id, fingerprint)
+);
+
 create table audit_events (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid references workspaces(id) on delete set null,
@@ -297,4 +314,6 @@ create index handoffs_workspace_idx on handoffs(workspace_id);
 create index handoffs_status_idx on handoffs(status);
 create index database_backups_org_idx on database_backups(organization_id);
 create index context_graph_snapshots_workspace_idx on context_graph_snapshots(workspace_id);
+create index playbook_registry_org_idx on playbook_registry(organization_id);
+create index playbook_registry_fingerprint_idx on playbook_registry(fingerprint);
 create index audit_events_workspace_idx on audit_events(workspace_id);

@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 const ROOT = process.cwd();
 
@@ -48,6 +48,7 @@ function createEmptyDb() {
     updatedAt: new Date().toISOString(),
     workspace: null,
     playbooks: [],
+    playbookRegistry: [],
     runs: [],
     evalRuns: [],
     contextGraphs: [],
@@ -66,6 +67,7 @@ function migrateDb(db = {}) {
     ...db,
     schemaVersion: Number(db.schemaVersion) || 1,
     playbooks: Array.isArray(db.playbooks) ? db.playbooks : [],
+    playbookRegistry: Array.isArray(db.playbookRegistry) ? db.playbookRegistry : [],
     runs: Array.isArray(db.runs) ? db.runs : [],
     evalRuns: Array.isArray(db.evalRuns) ? db.evalRuns : [],
     contextGraphs: Array.isArray(db.contextGraphs) ? db.contextGraphs : [],
@@ -179,6 +181,7 @@ async function buildDatabaseStatus(db) {
   const backups = await listDbBackups();
   const collections = {
     playbooks: Array.isArray(db.playbooks) ? db.playbooks.length : 0,
+    playbookRegistry: Array.isArray(db.playbookRegistry) ? db.playbookRegistry.length : 0,
     runs: Array.isArray(db.runs) ? db.runs.length : 0,
     evalRuns: Array.isArray(db.evalRuns) ? db.evalRuns.length : 0,
     contextGraphs: Array.isArray(db.contextGraphs) ? db.contextGraphs.length : 0,
@@ -999,6 +1002,84 @@ function buildConnectorTestReport(project = {}, documents = []) {
     dryRunOnly: true,
     sourceChecks,
     failureCatalog: uniqueServer(sourceChecks.flatMap((check) => check.tests.filter((test) => test.status !== "pass").map((test) => test.code))),
+  };
+}
+
+function sortForHash(value) {
+  if (Array.isArray(value)) return value.map(sortForHash);
+  if (!value || typeof value !== "object") return value;
+  return Object.keys(value)
+    .sort()
+    .reduce((acc, key) => {
+      acc[key] = sortForHash(value[key]);
+      return acc;
+    }, {});
+}
+
+function hashPlaybook(playbook = {}) {
+  const stablePayload = JSON.stringify(
+    sortForHash({
+      name: playbook.name,
+      industry: playbook.industry,
+      modules: playbook.modules,
+      workflowName: playbook.projectSnapshot?.workflowName,
+      connectors: playbook.projectSnapshot?.connectors?.map((connector) => connector.name),
+      tools: playbook.projectSnapshot?.tools?.map((tool) => tool.name),
+      evalCases: playbook.projectSnapshot?.evalCases?.map((test) => test.name),
+    }),
+  );
+  return createHash("sha256").update(stablePayload).digest("hex");
+}
+
+function scorePublishedPlaybook(playbook = {}) {
+  const project = playbook.projectSnapshot || {};
+  const readiness = Number(playbook.metrics?.readiness) || Number(project.readiness) || 0;
+  const tools = Number(playbook.metrics?.tools) || (Array.isArray(project.tools) ? project.tools.length : 0);
+  const evals = Number(playbook.metrics?.evals) || (Array.isArray(project.evalCases) ? project.evalCases.length : 0);
+  const timeline = Number(playbook.metrics?.timeline) || (Array.isArray(project.deployment?.timeline) ? project.deployment.timeline.length : 0);
+  const connectors = Array.isArray(project.connectors) ? project.connectors.length : 0;
+  const hasGovernance = Boolean(project.governance?.policies?.length || project.governance?.approvals?.length || project.governance?.auditEvents?.length);
+  const hasSnapshot = Boolean(playbook.projectSnapshot);
+  return Math.min(
+    100,
+    Math.round(
+      20 +
+        readiness * 0.28 +
+        Math.min(18, tools * 4) +
+        Math.min(18, evals * 4) +
+        Math.min(10, timeline * 2) +
+        Math.min(12, connectors * 3) +
+        (hasGovernance ? 10 : 0) +
+        (hasSnapshot ? 8 : 0),
+    ),
+  );
+}
+
+function buildPublishedPlaybook(playbook = {}, registry = []) {
+  const normalized = {
+    ...playbook,
+    id: playbook.id || randomUUID(),
+    name: playbook.name || playbook.projectSnapshot?.workflowName || "Untitled playbook",
+    industry: playbook.industry || "Enterprise",
+    clientName: playbook.clientName || playbook.projectSnapshot?.clientName || "Template client",
+    copy: playbook.copy || playbook.projectSnapshot?.businessProblem || "Reusable deployment pattern.",
+    modules: Array.isArray(playbook.modules) && playbook.modules.length ? playbook.modules : ["Context", "Tools", "Evals"],
+    metrics: playbook.metrics || {},
+    projectSnapshot: playbook.projectSnapshot || null,
+  };
+  const fingerprint = hashPlaybook(normalized);
+  const sameNameCount = registry.filter((item) => item.name === normalized.name).length;
+  const qualityScore = scorePublishedPlaybook(normalized);
+  return {
+    ...normalized,
+    id: `published-${randomUUID()}`,
+    source: "Marketplace package",
+    marketplaceStatus: "published",
+    version: normalized.version && normalized.version !== "draft" ? normalized.version : `1.${sameNameCount}.0`,
+    fingerprint,
+    qualityScore,
+    usageCount: Number(normalized.usageCount) || 0,
+    publishedAt: new Date().toISOString(),
   };
 }
 
@@ -2013,6 +2094,54 @@ async function handleApi(req, res, url) {
     );
     const saved = await writeDb(nextDb);
     sendJson(res, 200, { ok: true, playbooks: saved.playbooks, updatedAt: saved.updatedAt });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/playbooks/registry") {
+    sendJson(res, 200, { ok: true, playbookRegistry: Array.isArray(db.playbookRegistry) ? db.playbookRegistry : [] });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/playbooks/publish") {
+    const body = await readJsonBody(req);
+    const published = buildPublishedPlaybook(body.playbook || {}, Array.isArray(db.playbookRegistry) ? db.playbookRegistry : []);
+    const nextRegistry = [
+      published,
+      ...(Array.isArray(db.playbookRegistry) ? db.playbookRegistry.filter((item) => item.fingerprint !== published.fingerprint) : []),
+    ].slice(0, 250);
+    const nextDb = appendAudit(
+      {
+        ...db,
+        playbookRegistry: nextRegistry,
+      },
+      "playbook.published",
+      {
+        playbookId: published.id,
+        name: published.name,
+        version: published.version,
+        qualityScore: published.qualityScore,
+        fingerprint: published.fingerprint.slice(0, 12),
+      },
+    );
+    const saved = await writeDb(nextDb);
+    sendJson(res, 201, { ok: true, published, playbookRegistry: saved.playbookRegistry.slice(0, 50) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/playbooks/registry/use") {
+    const body = await readJsonBody(req);
+    const registry = Array.isArray(db.playbookRegistry) ? db.playbookRegistry : [];
+    const nextRegistry = registry.map((playbook) =>
+      playbook.id === body.playbookId ? { ...playbook, usageCount: Number(playbook.usageCount || 0) + 1, lastUsedAt: new Date().toISOString() } : playbook,
+    );
+    const used = nextRegistry.find((playbook) => playbook.id === body.playbookId);
+    const nextDb = appendAudit({ ...db, playbookRegistry: nextRegistry }, "playbook.registry.used", {
+      playbookId: body.playbookId,
+      name: used?.name,
+      usageCount: used?.usageCount,
+    });
+    const saved = await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, playbook: used || null, playbookRegistry: saved.playbookRegistry.slice(0, 50) });
     return;
   }
 

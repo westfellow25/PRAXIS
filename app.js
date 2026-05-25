@@ -11,6 +11,7 @@ const state = {
   evalsRun: false,
   project: null,
   playbooks: [],
+  playbookRegistry: [],
   documents: [],
   runs: [],
   handoffs: [],
@@ -927,9 +928,10 @@ async function apiRequest(path, options = {}) {
 
 async function hydrateFromBackend() {
   try {
-    const [workspaceResponse, playbooksResponse, documentsResponse, runsResponse, handoffsResponse, handoffAlertsResponse, telemetryResponse, databaseResponse, evalHistoryResponse] = await Promise.all([
+    const [workspaceResponse, playbooksResponse, registryResponse, documentsResponse, runsResponse, handoffsResponse, handoffAlertsResponse, telemetryResponse, databaseResponse, evalHistoryResponse] = await Promise.all([
       apiRequest("/workspace"),
       apiRequest("/playbooks"),
+      apiRequest("/playbooks/registry"),
       apiRequest("/documents"),
       apiRequest("/runs"),
       apiRequest("/handoffs"),
@@ -963,6 +965,10 @@ async function hydrateFromBackend() {
         PLAYBOOK_STORAGE_KEY,
         JSON.stringify(state.playbooks.filter((playbook) => !playbook.id.startsWith("default-"))),
       );
+    }
+
+    if (Array.isArray(registryResponse.playbookRegistry)) {
+      state.playbookRegistry = registryResponse.playbookRegistry.map(normalizePlaybook);
     }
 
     if (Array.isArray(documentsResponse.documents)) {
@@ -1062,6 +1068,13 @@ function normalizePlaybook(playbook, index = 0) {
     },
     source: playbook.source || "Saved workspace",
     createdAt: playbook.createdAt || new Date().toISOString(),
+    version: playbook.version || "draft",
+    fingerprint: playbook.fingerprint || "",
+    qualityScore: Number(playbook.qualityScore) || 0,
+    usageCount: Number(playbook.usageCount) || 0,
+    marketplaceStatus: playbook.marketplaceStatus || "local",
+    publishedAt: playbook.publishedAt || null,
+    lastUsedAt: playbook.lastUsedAt || null,
     projectSnapshot: playbook.projectSnapshot ? normalizeProject(playbook.projectSnapshot) : null,
   };
 }
@@ -4837,6 +4850,7 @@ function exportWorkspace() {
     evals: state.project.evalCases,
     documents: state.documents,
     playbookLibrary: state.playbooks,
+    playbookRegistry: state.playbookRegistry,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -4863,6 +4877,9 @@ function importWorkspace(event) {
       if (Array.isArray(parsed.playbookLibrary)) {
         state.playbooks = parsed.playbookLibrary.map(normalizePlaybook);
         savePlaybooks();
+      }
+      if (Array.isArray(parsed.playbookRegistry)) {
+        state.playbookRegistry = parsed.playbookRegistry.map(normalizePlaybook);
       }
       if (Array.isArray(parsed.documents)) {
         state.documents = parsed.documents.map(normalizeDocument);
@@ -4964,10 +4981,57 @@ function renderReadout() {
   `;
 }
 
+function renderPlaybookCard(playbook, mode = "library") {
+  const published = mode === "marketplace";
+  return `
+    <article class="playbook-card ${published ? "published" : ""}">
+      <div class="playbook-card-topline">
+        <div class="eyebrow">${escapeHtml(playbook.industry)} / ${escapeHtml(playbook.source)}</div>
+        <span>${escapeHtml(playbook.version || "draft")}</span>
+      </div>
+      <h3>${escapeHtml(playbook.name)}</h3>
+      <p>${escapeHtml(playbook.copy)}</p>
+      <div class="playbook-metrics">
+        <div class="playbook-metric">
+          <span>Readiness</span>
+          <strong>${playbook.metrics.readiness}%</strong>
+        </div>
+        <div class="playbook-metric">
+          <span>Quality</span>
+          <strong>${playbook.qualityScore || playbook.metrics.readiness}%</strong>
+        </div>
+        <div class="playbook-metric">
+          <span>${published ? "Uses" : "Evals"}</span>
+          <strong>${published ? playbook.usageCount : playbook.metrics.evals}</strong>
+        </div>
+      </div>
+      <div class="tag-list">
+        ${playbook.modules.map((module) => `<span class="tag">${escapeHtml(module)}</span>`).join("")}
+      </div>
+      ${published ? `<p class="playbook-fingerprint">Fingerprint ${escapeHtml(playbook.fingerprint.slice(0, 12) || "pending")}</p>` : ""}
+      <div class="playbook-card-actions">
+        ${
+          published
+            ? `<button class="primary-button small" data-use-published-playbook="${escapeHtml(playbook.id)}">Use package</button>`
+            : `<button class="primary-button small" data-clone-playbook="${escapeHtml(playbook.id)}">Use playbook</button>
+               <button class="ghost-button small" data-publish-playbook="${escapeHtml(playbook.id)}">Publish</button>
+               ${playbook.id.startsWith("default-") ? "" : `<button class="ghost-button small" data-delete-playbook="${escapeHtml(playbook.id)}">Delete</button>`}`
+        }
+      </div>
+    </article>
+  `;
+}
+
 function renderPlaybooks() {
   const query = state.playbookSearch.toLowerCase();
   const filtered = state.playbooks.filter((playbook) =>
     [playbook.name, playbook.industry, playbook.clientName, playbook.copy, playbook.modules.join(" ")]
+      .join(" ")
+      .toLowerCase()
+      .includes(query),
+  );
+  const marketplaceFiltered = state.playbookRegistry.filter((playbook) =>
+    [playbook.name, playbook.industry, playbook.clientName, playbook.copy, playbook.modules.join(" "), playbook.version, playbook.fingerprint]
       .join(" ")
       .toLowerCase()
       .includes(query),
@@ -4986,44 +5050,27 @@ function renderPlaybooks() {
       <span>Industries</span>
       <strong>${new Set(state.playbooks.map((playbook) => playbook.industry)).size}</strong>
     </article>
+    <article class="playbook-stat">
+      <span>Published</span>
+      <strong>${state.playbookRegistry.length}</strong>
+    </article>
   `;
   document.querySelector("#playbook-grid").innerHTML = filtered.length
-    ? filtered
-    .map(
-      (playbook) => `
-        <article class="playbook-card">
-          <div class="eyebrow">${escapeHtml(playbook.industry)} · ${escapeHtml(playbook.source)}</div>
-          <h3>${escapeHtml(playbook.name)}</h3>
-          <p>${escapeHtml(playbook.copy)}</p>
-          <div class="playbook-metrics">
-            <div class="playbook-metric">
-              <span>Readiness</span>
-              <strong>${playbook.metrics.readiness}%</strong>
-            </div>
-            <div class="playbook-metric">
-              <span>Tools</span>
-              <strong>${playbook.metrics.tools}</strong>
-            </div>
-            <div class="playbook-metric">
-              <span>Evals</span>
-              <strong>${playbook.metrics.evals}</strong>
-            </div>
-          </div>
-          <div class="tag-list">
-            ${playbook.modules.map((module) => `<span class="tag">${escapeHtml(module)}</span>`).join("")}
-          </div>
-          <div class="playbook-card-actions">
-            <button class="primary-button small" data-clone-playbook="${escapeHtml(playbook.id)}">Use playbook</button>
-            ${playbook.id.startsWith("default-") ? "" : `<button class="ghost-button small" data-delete-playbook="${escapeHtml(playbook.id)}">Delete</button>`}
-          </div>
-        </article>
-      `,
-    )
-    .join("")
+    ? filtered.map((playbook) => renderPlaybookCard(playbook, "library")).join("")
     : `<article class="playbook-card"><h3>No playbooks found</h3><p>Try a different search or save the current workspace as a new playbook.</p></article>`;
+
+  document.querySelector("#playbook-marketplace-grid").innerHTML = marketplaceFiltered.length
+    ? marketplaceFiltered.map((playbook) => renderPlaybookCard(playbook, "marketplace")).join("")
+    : `<article class="playbook-card"><h3>No published packages yet</h3><p>Publish the current workspace or an existing template to create the first local marketplace package.</p></article>`;
 
   document.querySelectorAll("[data-clone-playbook]").forEach((button) => {
     button.addEventListener("click", () => clonePlaybook(button.dataset.clonePlaybook));
+  });
+  document.querySelectorAll("[data-publish-playbook]").forEach((button) => {
+    button.addEventListener("click", () => publishPlaybook(button.dataset.publishPlaybook));
+  });
+  document.querySelectorAll("[data-use-published-playbook]").forEach((button) => {
+    button.addEventListener("click", () => usePublishedPlaybook(button.dataset.usePublishedPlaybook));
   });
   document.querySelectorAll("[data-delete-playbook]").forEach((button) => {
     button.addEventListener("click", () => deletePlaybook(button.dataset.deletePlaybook));
@@ -5072,6 +5119,55 @@ function saveCurrentAsPlaybook() {
   savePlaybooks();
   renderPlaybooks();
   setStorageStatus("Playbook saved", "green");
+}
+
+async function publishPlaybook(playbookId) {
+  const playbook = playbookId ? state.playbooks.find((item) => item.id === playbookId) : buildPlaybookFromProject();
+  if (!playbook) return;
+  const packagePlaybook = {
+    ...playbook,
+    version: playbook.version === "draft" ? undefined : playbook.version,
+    projectSnapshot: playbook.projectSnapshot || getDefaultPlaybookProject(playbook),
+  };
+  try {
+    const response = await apiRequest("/playbooks/publish", {
+      method: "POST",
+      body: JSON.stringify({ playbook: packagePlaybook }),
+    });
+    state.playbookRegistry = (response.playbookRegistry || [response.published]).map(normalizePlaybook);
+    state.backendOnline = true;
+    setStorageStatus(`Published ${response.published.name} ${response.published.version}`, "green");
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("Playbook publish unavailable", error);
+    setStorageStatus("Publish failed", "amber");
+  }
+  renderPlaybooks();
+  renderDatabaseStatus();
+}
+
+async function usePublishedPlaybook(playbookId) {
+  const playbook = state.playbookRegistry.find((item) => item.id === playbookId);
+  if (!playbook) return;
+  try {
+    const response = await apiRequest("/playbooks/registry/use", {
+      method: "POST",
+      body: JSON.stringify({ playbookId }),
+    });
+    if (Array.isArray(response.playbookRegistry)) {
+      state.playbookRegistry = response.playbookRegistry.map(normalizePlaybook);
+    }
+    state.backendOnline = true;
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("Playbook usage tracking unavailable", error);
+  }
+  state.project = normalizeProject(playbook.projectSnapshot ? clone(playbook.projectSnapshot) : getDefaultPlaybookProject(playbook));
+  state.selectedOpportunity = state.project.opportunities[0]?.id || "aml";
+  state.evalsRun = state.project.evalCases.some((test) => test.result !== "pending");
+  saveProject(`Loaded marketplace package: ${playbook.name}`);
+  renderAll();
+  switchView("workspace");
 }
 
 function getDefaultPlaybookProject(playbook) {
@@ -5220,6 +5316,7 @@ document.querySelector("#add-milestone").addEventListener("click", addMilestone)
 document.querySelector("#add-blocker").addEventListener("click", addBlocker);
 document.querySelector("#add-checklist-item").addEventListener("click", addChecklistItem);
 document.querySelector("#save-playbook").addEventListener("click", saveCurrentAsPlaybook);
+document.querySelector("#publish-current-playbook").addEventListener("click", () => publishPlaybook());
 document.querySelector("#playbook-search").addEventListener("input", (event) => {
   state.playbookSearch = event.target.value;
   renderPlaybooks();

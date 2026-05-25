@@ -49,6 +49,9 @@ The backend lives in `server.js` and exposes:
 - `PUT /api/workspace`
 - `GET /api/playbooks`
 - `PUT /api/playbooks`
+- `GET /api/playbooks/registry`
+- `POST /api/playbooks/publish`
+- `POST /api/playbooks/registry/use`
 - `GET /api/runs`
 - `POST /api/runs`
 - `GET /api/evals/history`
@@ -119,7 +122,7 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Include retrieval coverage in backend eval runs when Knowledge Base documents exist.
 - Manage a deployment timeline, rollout checklist, blockers, owners, statuses, and exit criteria.
 - Save the current workspace as a reusable playbook.
-- Search playbooks and clone a template back into the active workspace.
+- Search playbooks, publish versioned packages into a local marketplace registry, track usage, and clone packages back into the active workspace.
 - Save the workspace to browser local storage.
 - Inspect local database health, schema version, collection counts, file size, migrations, and backups.
 - Create manual JSON database backups from the Workspace editor.

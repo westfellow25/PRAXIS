@@ -575,7 +575,7 @@ p {
 
 .playbook-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -602,6 +602,26 @@ p {
 .playbook-card {
   display: grid;
   gap: 10px;
+}
+
+.playbook-card.published {
+  border-left: 5px solid var(--green);
+}
+
+.playbook-card-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+
+.playbook-card-topline > span {
+  border-radius: 999px;
+  background: #fffdf7;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 900;
+  padding: 6px 8px;
 }
 
 .playbook-card-actions {
@@ -635,6 +655,13 @@ p {
   display: block;
   margin-top: 4px;
   font-size: 14px;
+}
+
+.playbook-fingerprint {
+  margin: 0;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
 }
 
 .badge {
@@ -3044,6 +3071,10 @@ p {
 
   .connector-test-summary,
   .connector-test-checks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .playbook-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
