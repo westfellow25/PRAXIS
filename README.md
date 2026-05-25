@@ -76,7 +76,7 @@ The local database is `data/praxis-db.json`.
 See `DATABASE_SCHEMA.md` for the current schema.
 See `schema.sql` for the Postgres-ready schema draft.
 
-`POST /api/intake/workspace` is the first backend intake engine. It takes messy client notes and returns a structured workspace patch: best template, KPI timings, human-review target, source systems, connector patches, success metric, and first-agent summary. By default it uses a deterministic extractor. If `.env` includes `LLM_ENDPOINT`, `LLM_MODEL`, and `LLM_API_KEY`, the backend uses an OpenAI-compatible chat-completions adapter and falls back to deterministic extraction if the provider fails.
+`POST /api/intake/workspace` is the first backend intake engine. It takes messy client notes and returns a structured workspace patch: best template, KPI timings, human-review target, source systems, connector patches, success metric, and first-agent summary. By default it uses a deterministic extractor. If `.env` includes `LLM_ENDPOINT`, `LLM_MODEL`, and `LLM_API_KEY`, the backend uses an OpenAI-compatible chat-completions adapter with schema validation, repair/retry, and deterministic fallback if the provider fails or returns invalid JSON.
 
 ## Roadmap checklist
 
@@ -89,7 +89,7 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 ## What works in this version
 
 - Edit the client brief and KPI metrics.
-- Generate a workspace from a raw process description through the backend intake engine, with browser fallback.
+- Generate a workspace from a raw process description through the backend intake engine, with schema validation, repair/retry, and browser fallback.
 - Use four demo intake presets: banking AML, insurance claims, legal review, and SaaS support.
 - View a generated Context Graph with people, systems, agent tools, controls, and readiness blockers.
 - Manage connector readiness across source systems, data classes, access modes, refresh cadence, and blockers.

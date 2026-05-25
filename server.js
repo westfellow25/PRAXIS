@@ -443,9 +443,93 @@ function safeJsonParse(text = "") {
   }
 }
 
+function validateWorkspacePatch(result = {}) {
+  const errors = [];
+  if (!["banking", "insurance", "legal", "support"].includes(result.templateKey)) errors.push("templateKey must be one of banking, insurance, legal, support");
+  if (!result.analysis || typeof result.analysis !== "object") errors.push("analysis object is required");
+  if (!result.projectPatch || typeof result.projectPatch !== "object") errors.push("projectPatch object is required");
+  if (result.projectPatch && typeof result.projectPatch.workflowName !== "string") errors.push("projectPatch.workflowName must be a string");
+  if (result.projectPatch && result.projectPatch.readiness !== undefined && !Number.isFinite(Number(result.projectPatch.readiness))) errors.push("projectPatch.readiness must be numeric");
+  if (result.projectPatch?.connectors !== undefined && !Array.isArray(result.projectPatch.connectors)) errors.push("projectPatch.connectors must be an array");
+  if (result.analysis?.extractedSystems !== undefined && !Array.isArray(result.analysis.extractedSystems)) errors.push("analysis.extractedSystems must be an array");
+  if (result.analysis?.confidence !== undefined && !Number.isFinite(Number(result.analysis.confidence))) errors.push("analysis.confidence must be numeric");
+  return { valid: errors.length === 0, errors };
+}
+
+function repairWorkspacePatch(candidate = {}, fallback = buildWorkspacePatchFromIntake("")) {
+  const templateKey = ["banking", "insurance", "legal", "support"].includes(candidate.templateKey) ? candidate.templateKey : fallback.templateKey;
+  const analysis = {
+    ...fallback.analysis,
+    ...(candidate.analysis && typeof candidate.analysis === "object" ? candidate.analysis : {}),
+  };
+  analysis.confidence = Number.isFinite(Number(analysis.confidence)) ? Math.max(0, Math.min(1, Number(analysis.confidence))) : fallback.analysis.confidence;
+  analysis.extractedSystems = Array.isArray(analysis.extractedSystems) ? analysis.extractedSystems.filter(Boolean).slice(0, 12) : fallback.analysis.extractedSystems;
+  analysis.extractedTimes = analysis.extractedTimes && typeof analysis.extractedTimes === "object" ? analysis.extractedTimes : fallback.analysis.extractedTimes;
+
+  const rawPatch = candidate.projectPatch && typeof candidate.projectPatch === "object" ? candidate.projectPatch : {};
+  const projectPatch = {
+    ...fallback.projectPatch,
+    ...rawPatch,
+  };
+  projectPatch.workflowName = String(projectPatch.workflowName || fallback.projectPatch.workflowName);
+  projectPatch.clientName = String(projectPatch.clientName || fallback.projectPatch.clientName);
+  projectPatch.readiness = Math.max(0, Math.min(100, Number(projectPatch.readiness) || fallback.projectPatch.readiness || 60));
+  projectPatch.connectors = Array.isArray(rawPatch.connectors)
+    ? rawPatch.connectors.map((connector, index) => ({
+        name: connector.name || `System ${index + 1}`,
+        type: connector.type || classifySystem(connector.name || ""),
+        owner: connector.owner || "System owner",
+        access: connector.access || "Read-only pending",
+        dataClass: connector.dataClass || classifyData(connector.name || ""),
+        status: connector.status || "Needs approval",
+        refresh: connector.refresh || "Daily",
+        records: connector.records || `${connector.dataClass || "Internal"} records`,
+        purpose: connector.purpose || `Feeds ${projectPatch.workflowName} with context.`,
+      }))
+    : fallback.projectPatch.connectors;
+
+  return { templateKey, analysis, projectPatch };
+}
+
+async function callLlmIntake(prompt) {
+  const response = await fetch(process.env.LLM_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${process.env.LLM_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: process.env.LLM_MODEL,
+      messages: [
+        { role: "system", content: "You generate strict JSON for enterprise AI deployment intake." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.1,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`LLM endpoint returned ${response.status}`);
+  }
+
+  const payload = await response.json();
+  return payload.choices?.[0]?.message?.content || payload.output_text || "";
+}
+
 async function buildWorkspacePatchFromIntakeWithProvider(text = "") {
   const fallback = buildWorkspacePatchFromIntake(text);
-  if (!hasLlmConfig()) return fallback;
+  const fallbackValidation = validateWorkspacePatch(fallback);
+  if (!hasLlmConfig()) {
+    return {
+      ...fallback,
+      analysis: {
+        ...fallback.analysis,
+        schemaValid: fallbackValidation.valid,
+        schemaErrors: fallbackValidation.errors,
+        repairApplied: false,
+      },
+    };
+  }
 
   const prompt = [
     "You are the PRAXIS intake engine for a Forward Deployed Engineering Operating System.",
@@ -459,47 +543,56 @@ async function buildWorkspacePatchFromIntakeWithProvider(text = "") {
   ].join("\n");
 
   try {
-    const response = await fetch(process.env.LLM_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${process.env.LLM_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: process.env.LLM_MODEL,
-        messages: [
-          { role: "system", content: "You generate strict JSON for enterprise AI deployment intake." },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.1,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`LLM endpoint returned ${response.status}`);
-    }
-
-    const payload = await response.json();
-    const content = payload.choices?.[0]?.message?.content || payload.output_text || "";
+    const content = await callLlmIntake(prompt);
     const parsed = safeJsonParse(content);
     if (!parsed || !parsed.projectPatch) {
       throw new Error("LLM response did not include projectPatch JSON");
     }
+    let repaired = repairWorkspacePatch(parsed, fallback);
+    let validation = validateWorkspacePatch(repaired);
+    let repairApplied = validation.errors.length > 0;
+
+    if (!validation.valid) {
+      const repairPrompt = [
+        "Repair this PRAXIS intake JSON so it matches the required schema.",
+        "Return only JSON with keys: templateKey, analysis, projectPatch.",
+        `Schema errors: ${validation.errors.join("; ")}`,
+        `Fallback shape: ${JSON.stringify(fallback).slice(0, 4000)}`,
+        `Candidate JSON: ${JSON.stringify(repaired).slice(0, 4000)}`,
+      ].join("\n");
+      const repairedContent = await callLlmIntake(repairPrompt);
+      const repairedParsed = safeJsonParse(repairedContent);
+      if (repairedParsed) {
+        repaired = repairWorkspacePatch(repairedParsed, fallback);
+        validation = validateWorkspacePatch(repaired);
+        repairApplied = true;
+      }
+    }
+
+    if (!validation.valid) {
+      return {
+        ...fallback,
+        analysis: {
+          ...fallback.analysis,
+          mode: "llm-schema-fallback-extractor",
+          llmError: validation.errors.join("; "),
+          schemaValid: false,
+          schemaErrors: validation.errors,
+          repairApplied,
+        },
+      };
+    }
 
     return {
-      templateKey: parsed.templateKey || fallback.templateKey,
+      templateKey: repaired.templateKey,
       analysis: {
-        ...fallback.analysis,
-        ...(parsed.analysis || {}),
+        ...repaired.analysis,
         mode: "llm-provider",
+        schemaValid: true,
+        schemaErrors: [],
+        repairApplied,
       },
-      projectPatch: {
-        ...fallback.projectPatch,
-        ...parsed.projectPatch,
-        connectors: Array.isArray(parsed.projectPatch.connectors)
-          ? parsed.projectPatch.connectors
-          : fallback.projectPatch.connectors,
-      },
+      projectPatch: repaired.projectPatch,
     };
   } catch (error) {
     return {
@@ -508,6 +601,9 @@ async function buildWorkspacePatchFromIntakeWithProvider(text = "") {
         ...fallback.analysis,
         mode: "llm-error-fallback-extractor",
         llmError: error.message,
+        schemaValid: fallbackValidation.valid,
+        schemaErrors: fallbackValidation.errors,
+        repairApplied: false,
       },
     };
   }
@@ -1921,6 +2017,8 @@ async function handleApi(req, res, url) {
       workflowName: result.projectPatch.workflowName,
       systems: result.analysis.extractedSystems.length,
       mode: result.analysis.mode,
+      schemaValid: result.analysis.schemaValid,
+      repairApplied: result.analysis.repairApplied,
     });
     await writeDb(nextDb);
     sendJson(res, 200, { ok: true, ...result });

@@ -93,7 +93,7 @@
 | [x] | Visual Agent Builder | Trigger -> Context -> Tools -> Reasoning -> Human Review -> Action -> Logging | Готово | Есть Agent Builder |
 | [x] | Human-in-loop design | Человек утверждает risky cases | Готово | Отражено в workflow/governance |
 | [x] | Pilot Run Console | Один кейс проходит через весь stack | Готово | Есть backend Agent Runtime trace, evidence, decision, audit |
-| [ ] | Discovery Agent | Помогает FDE понять компанию | Частично | Backend intake engine уже строит workspace patch, но пока без настоящего LLM |
+| [x] | Discovery Agent | Помогает FDE понять компанию | Готово для MVP | Backend intake engine строит workspace patch, поддерживает OpenAI-compatible LLM adapter, schema validation, repair/retry и deterministic fallback |
 | [ ] | Process Analyst Agent | Автоматически строит process map | Не начато | Нужен LLM |
 | [ ] | Data Readiness Agent | Анализирует качество данных | Не начато | Нужны connectors + evals |
 | [ ] | API Readiness Agent | Проверяет API пригодность | Не начато | Нужен OpenAPI/API testing |
@@ -187,7 +187,7 @@
 | P0 | [ ] | Перенести проект в нормальный repo | Нужна база для разработки |
 | P0 | [x] | Добавить backend | Локальный Node backend готов без внешних зависимостей |
 | P0 | [x] | Добавить database schema | JSON schema готова в `DATABASE_SCHEMA.md`; локальная БД `data/praxis-db.json` |
-| P0 | [x] | Подключить реальный LLM intake | Частично: backend поддерживает OpenAI-compatible `LLM_ENDPOINT`/`LLM_MODEL`/`LLM_API_KEY`, но без ключа работает deterministic fallback |
+| P0 | [x] | Подключить реальный LLM intake | Готово для MVP: OpenAI-compatible `LLM_ENDPOINT`/`LLM_MODEL`/`LLM_API_KEY`, schema validation, repair/retry и deterministic fallback |
 | P1 | [x] | Реальный run trace storage | Готово для MVP: `GET /api/runs`, `POST /api/runs`, Agent Runtime persistence и Run History UI |
 | P1 | [x] | Реальный eval runner | Готово для MVP: backend проверяет eval dataset, evidence, recommendation match, hallucination risk и regression history |
 | P1 | [x] | OpenAPI/MCP import | OpenAPI JSON превращается в Tool Fabric rows; MCP server scaffold генерируется через `/api/mcp/generate` |

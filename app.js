@@ -1910,7 +1910,7 @@ function renderIntakePreview(template, text, analysis = null) {
         analysis
           ? `<div class="intake-preview-card">
               <strong>Backend extraction</strong>
-              ${escapeHtml(analysis.mode)}; ${analysis.extractedSystems.length} systems; ${analysis.extractedTimes.beforeTime || "?"} to ${analysis.extractedTimes.afterTime || "?"}.
+              ${escapeHtml(analysis.mode)}; schema ${analysis.schemaValid === false ? "needs fallback" : "valid"}; repair ${analysis.repairApplied ? "applied" : "not needed"}; ${analysis.extractedSystems.length} systems; ${analysis.extractedTimes.beforeTime || "?"} to ${analysis.extractedTimes.afterTime || "?"}.
             </div>`
           : ""
       }

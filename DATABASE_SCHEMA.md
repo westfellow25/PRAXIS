@@ -496,11 +496,14 @@ Server-side audit events for workspace saves, playbook saves, document ingestion
 {
   "ok": true,
   "templateKey": "banking",
-  "analysis": {
-    "industry": "Banking",
-    "workflowName": "AML Alert Briefing",
-    "confidence": 0.78,
-    "extractedSystems": ["ServiceNow", "KYC database", "transaction warehouse"],
+    "analysis": {
+      "industry": "Banking",
+      "workflowName": "AML Alert Briefing",
+      "confidence": 0.78,
+      "schemaValid": true,
+      "schemaErrors": [],
+      "repairApplied": false,
+      "extractedSystems": ["ServiceNow", "KYC database", "transaction warehouse"],
     "extractedTimes": {
       "beforeTime": "45m",
       "afterTime": "10m"
