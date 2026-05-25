@@ -164,6 +164,13 @@ Runs are saved from Pilot Console.
     "latencyMs": 1140,
     "estimatedCostUsd": 0.086,
     "requiresHumanReview": true,
+    "runtimeStateMachine": {
+      "engine": "deterministic-state-machine-v1",
+      "status": "waiting_for_human",
+      "finalState": "human_handoff_queue",
+      "retryCount": 1,
+      "states": []
+    },
     "retrievalResults": [],
     "callableTools": [],
     "decision": {

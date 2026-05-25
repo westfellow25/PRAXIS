@@ -3136,6 +3136,7 @@ function normalizeAgentRuntimeRun(run) {
     connectorHealth: run.connectorHealth || getConnectorHealth(),
     toolAverage: run.toolAverage || 0,
     governance: run.governance || getGovernanceHealth(),
+    runtimeStateMachine: run.runtimeStateMachine || null,
     retrievalResults: run.retrievalResults || [],
     trace: run.trace || [],
   };
@@ -3174,6 +3175,16 @@ function renderPilotRunConsole() {
         `
         : ""
     }
+    ${
+      run.runtimeStateMachine
+        ? `
+          <article>
+            <span>State machine</span>
+            <strong>${escapeHtml(run.runtimeStateMachine.status)} · ${run.runtimeStateMachine.retryCount} retries</strong>
+          </article>
+        `
+        : ""
+    }
   `;
 
   document.querySelector("#pilot-trace").innerHTML = run.trace
@@ -3183,7 +3194,7 @@ function renderPilotRunConsole() {
           <div class="trace-index">${String(index + 1).padStart(2, "0")}</div>
           <div>
             <h3><span>${escapeHtml(step.layer)}</span>${escapeHtml(step.title)}</h3>
-            <p>${escapeHtml(step.detail)}</p>
+            <p>${escapeHtml(step.detail)}${step.retryPolicy ? ` Attempt ${Number(step.attempt || 1)}/${Number(step.maxAttempts || 1)}; ${escapeHtml(step.retryPolicy)}.` : ""}</p>
           </div>
           <strong>${escapeHtml(step.status)}</strong>
         </article>

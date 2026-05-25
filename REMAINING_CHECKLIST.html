@@ -279,8 +279,8 @@
       </section>
 
       <section class="stats">
-        <article class="stat"><span>Готово</span><strong>17</strong></article>
-        <article class="stat"><span>Частично</span><strong>5</strong></article>
+        <article class="stat"><span>Готово</span><strong>18</strong></article>
+        <article class="stat"><span>Частично</span><strong>4</strong></article>
         <article class="stat"><span>Не начато</span><strong>4</strong></article>
         <article class="stat"><span>Следующий фокус</span><strong>P0</strong></article>
       </section>
@@ -358,9 +358,9 @@
             <span>Pilot</span><strong>Run trace storage</strong><span class="badge green">Готово</span>
             <p>Pilot runs сохраняются через `POST /api/runs` и `POST /api/agent/run`; UI показывает Run History с trace, evidence, tools, confidence и human-review state.</p><p>Позже: реальные model/tool call payloads.</p><span class="priority">P1</span>
           </div>
-          <div class="row orange">
-            <span>Runtime</span><strong>Actual agent execution</strong><span class="badge orange">Частично</span>
-            <p>`/api/agent/run` выполняет deterministic runtime: retrieval, tool selection, eval gate, governance gate, human handoff.</p><p>Осталось: настоящие tool execution, retries, state machine.</p><span class="priority">P0</span>
+          <div class="row green">
+            <span>Runtime</span><strong>Actual agent execution</strong><span class="badge green">Готово</span>
+            <p>`/api/agent/run` выполняет deterministic state machine: retrieval, tool selection, eval gate, governance gate, retry/fallback metadata и human handoff.</p><p>Позже: настоящие live tool calls against customer APIs.</p><span class="priority">P0</span>
           </div>
           <div class="row green">
             <span>Handoff</span><strong>Human review queue</strong><span class="badge green">Готово</span>

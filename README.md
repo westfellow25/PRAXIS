@@ -105,7 +105,7 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Manage governance policies, approval gates, audit trail requirements, and governance readiness.
 - Run a governance pre-flight check that flags blocked connectors, sensitive data, high-risk tools, pending approvals, and audit gaps.
 - Run runtime governance enforcement that returns allow/approval/block decisions, masks sensitive input, builds a tool secrets manifest, and records the enforcement audit event.
-- Run the backend Agent Runtime from Pilot Console and inspect a saved case trace, evidence packet, decision boundary, approval route, latency, cost estimate, and audit payload.
+- Run the backend Agent Runtime from Pilot Console and inspect a saved case trace, state machine, retry policy, evidence packet, decision boundary, approval route, latency, cost estimate, and audit payload.
 - Browse saved Pilot Console run history with trace steps, evidence counts, tool counts, confidence, and human-review state.
 - Manage a Human Handoff Queue created by Agent Runtime, with approve, escalate, block, overdue, due-soon, and escalated SLA reminders saved back to the backend.
 - Calculate annual net value, monthly hours saved, payback, conservative/base/upside scenarios, and runtime telemetry from saved agent runs.

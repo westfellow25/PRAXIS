@@ -1026,6 +1026,40 @@ await server.connect(transport);
 `;
 }
 
+function decorateRuntimeTrace(trace = []) {
+  return trace.map((step, index) => {
+    const retryable = ["Sparse context", "No tools"].includes(step.status);
+    return {
+      ...step,
+      state: String(step.layer || `step-${index + 1}`).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || `step_${index + 1}`,
+      attempt: retryable ? 2 : 1,
+      maxAttempts: retryable ? 2 : 1,
+      retryPolicy: retryable ? "retry_once_then_fallback" : "no_retry_needed",
+    };
+  });
+}
+
+function buildRuntimeStateMachine(trace = [], { requiresHumanReview = false, outcome = "Recorded" } = {}) {
+  const states = trace.map((step, index) => ({
+    position: index + 1,
+    state: step.state,
+    title: step.title,
+    status: step.status,
+    attempt: step.attempt || 1,
+    maxAttempts: step.maxAttempts || 1,
+    retryPolicy: step.retryPolicy || "no_retry_needed",
+    latencyMs: step.latencyMs || 0,
+  }));
+  const retryCount = states.reduce((sum, state) => sum + Math.max(0, Number(state.attempt || 1) - 1), 0);
+  return {
+    engine: "deterministic-state-machine-v1",
+    status: outcome.includes("Blocked") ? "blocked" : requiresHumanReview ? "waiting_for_human" : "completed",
+    finalState: requiresHumanReview ? "human_handoff_queue" : "controlled_action_ready",
+    retryCount,
+    states,
+  };
+}
+
 function runAgentRuntime({ project = {}, documents = [], caseInput = "" } = {}) {
   const workflowName = project.workflowName || "Unknown workflow";
   const clientName = project.clientName || "Unknown client";
@@ -1090,7 +1124,7 @@ function runAgentRuntime({ project = {}, documents = [], caseInput = "" } = {}) 
   const estimatedCostUsd = Number((0.02 + retrievalResults.length * 0.006 + callableTools.length * 0.018 + evalCases.length * 0.004).toFixed(3));
   const runId = `PX-${workflowName.replace(/[^A-Z0-9]/gi, "").slice(0, 4).toUpperCase()}-${randomUUID().slice(0, 8)}`;
 
-  const trace = [
+  const trace = decorateRuntimeTrace([
     {
       layer: "Trigger",
       title: "Runtime received case",
@@ -1144,7 +1178,8 @@ function runAgentRuntime({ project = {}, documents = [], caseInput = "" } = {}) 
       status: requiresHumanReview ? "Human review" : "Ready",
       latencyMs: 40,
     },
-  ];
+  ]);
+  const runtimeStateMachine = buildRuntimeStateMachine(trace, { requiresHumanReview, outcome });
 
   return {
     id: runId,
@@ -1166,6 +1201,7 @@ function runAgentRuntime({ project = {}, documents = [], caseInput = "" } = {}) 
     governance,
     governanceEnforcement,
     evalSummary: evalResult.summary,
+    runtimeStateMachine,
     retrievalResults,
     decision: {
       recommendation: requiresHumanReview

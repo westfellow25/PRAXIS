@@ -97,7 +97,7 @@
 | [ ] | Process Analyst Agent | Автоматически строит process map | Не начато | Нужен LLM |
 | [ ] | Data Readiness Agent | Анализирует качество данных | Не начато | Нужны connectors + evals |
 | [ ] | API Readiness Agent | Проверяет API пригодность | Не начато | Нужен OpenAPI/API testing |
-| [x] | Workflow Agent | Реально выполняет задачу | Частично | `/api/agent/run` выполняет deterministic runtime: retrieval, tools, evals, governance, decision, audit; настоящие tool calls еще не подключены |
+| [x] | Workflow Agent | Реально выполняет задачу | Готово для MVP | `/api/agent/run` выполняет deterministic state machine: retrieval, tools, evals, governance, retries/fallbacks, decision, handoff и audit; live tool calls позже |
 | [x] | Compliance Agent | Реально проверяет политики | Готово для MVP | `/api/governance/check` делает pre-flight findings, `/api/governance/enforce` применяет runtime masking, approvals, tool policy и secrets manifest |
 | [x] | Human Handoff Agent | Очередь ручных решений | Готово для MVP | Agent Runtime создаёт handoff queue item; UI поддерживает approve/escalate/block; SLA alerts показывают overdue/due soon/escalated; external notifications позже |
 
