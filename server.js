@@ -49,6 +49,7 @@ function createEmptyDb() {
     workspace: null,
     playbooks: [],
     runs: [],
+    evalRuns: [],
     handoffs: [],
     documents: [],
     auditLog: [],
@@ -64,6 +65,7 @@ function migrateDb(db = {}) {
     schemaVersion: Number(db.schemaVersion) || 1,
     playbooks: Array.isArray(db.playbooks) ? db.playbooks : [],
     runs: Array.isArray(db.runs) ? db.runs : [],
+    evalRuns: Array.isArray(db.evalRuns) ? db.evalRuns : [],
     handoffs: Array.isArray(db.handoffs) ? db.handoffs : [],
     documents: Array.isArray(db.documents) ? db.documents : [],
     auditLog: Array.isArray(db.auditLog) ? db.auditLog : [],
@@ -174,6 +176,7 @@ async function buildDatabaseStatus(db) {
   const collections = {
     playbooks: Array.isArray(db.playbooks) ? db.playbooks.length : 0,
     runs: Array.isArray(db.runs) ? db.runs.length : 0,
+    evalRuns: Array.isArray(db.evalRuns) ? db.evalRuns.length : 0,
     handoffs: Array.isArray(db.handoffs) ? db.handoffs.length : 0,
     documents: Array.isArray(db.documents) ? db.documents.length : 0,
     auditEvents: Array.isArray(db.auditLog) ? db.auditLog.length : 0,
@@ -767,61 +770,140 @@ function getServerConnectorHealth(project = {}) {
   };
 }
 
-function runServerEvalSuite(project = {}, documents = []) {
+function extractEvalKeywords(text = "") {
+  return [
+    ...new Set(
+      String(text || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, " ")
+        .split(/\s+/)
+        .filter((word) => word.length > 4 && !["should", "before", "after", "agent", "output", "expected"].includes(word)),
+    ),
+  ].slice(0, 24);
+}
+
+function scoreKeywordOverlap(expected = "", evidence = "") {
+  const expectedTerms = extractEvalKeywords(expected);
+  if (!expectedTerms.length) return 100;
+  const haystack = String(evidence || "").toLowerCase();
+  const matched = expectedTerms.filter((term) => haystack.includes(term));
+  return Math.round((matched.length / expectedTerms.length) * 100);
+}
+
+function getLatestEvalCaseHistory(previousEvalRuns = [], evalId) {
+  for (const run of previousEvalRuns) {
+    const match = (run.evalCases || []).find((test) => test.id === evalId);
+    if (match) return match;
+  }
+  return null;
+}
+
+function runServerEvalSuite(project = {}, documents = [], options = {}) {
   const tools = Array.isArray(project.tools) ? project.tools : [];
   const evalCases = Array.isArray(project.evalCases) ? project.evalCases : [];
+  const previousEvalRuns = Array.isArray(options.previousEvalRuns) ? options.previousEvalRuns : [];
+  const handoffs = Array.isArray(options.handoffs) ? options.handoffs : [];
   const readiness = Number(project.readiness) || 0;
   const toolAverage = Math.round(tools.reduce((sum, tool) => sum + scoreServerTool(tool), 0) / Math.max(1, tools.length));
   const hasAudit = tools.some((tool) => `${tool.name || ""} ${tool.code || ""} ${tool.copy || ""}`.toLowerCase().match(/audit|trace/));
+  const decisionHistory = handoffs.filter((handoff) => handoff.decision || ["Approved", "Blocked", "Escalated"].includes(handoff.status)).length;
 
   const nextEvalCases = evalCases.map((test, index) => {
     const severity = test.severity || "Medium";
+    const evalId = test.id || `eval-${index + 1}`;
     const severityPenalty = { Low: 0, Medium: 6, High: 12, Critical: 18 }[severity] ?? 6;
     const retrievalEvidence = retrieveDocumentChunks(
       documents,
       `${test.name || ""} ${test.category || ""} ${test.input || ""} ${test.expected || ""}`,
       3,
     );
+    const evidenceText = retrievalEvidence.map((item) => `${item.documentName} ${item.text} ${(item.keywords || []).join(" ")}`).join(" ");
+    const supportCorpus = [
+      project.firstAgent,
+      project.workflowName,
+      project.businessProblem,
+      tools.map((tool) => `${tool.name} ${tool.copy} ${tool.auth}`).join(" "),
+      project.governance?.policies?.map((policy) => `${policy.area} ${policy.rule}`).join(" "),
+      evidenceText,
+    ].join(" ");
+    const recommendationMatchScore = scoreKeywordOverlap(test.expected, supportCorpus);
+    const hallucinationStatus = documents.length && retrievalEvidence.length === 0 && ["High", "Critical"].includes(severity) ? "warn" : "pass";
+    const previous = getLatestEvalCaseHistory(previousEvalRuns, evalId);
     const retrievalAdjustment = documents.length ? (retrievalEvidence.length ? 6 : -8) : 0;
-    const score = Math.max(0, Math.min(100, Math.round((readiness + toolAverage) / 2 - severityPenalty + (hasAudit ? 8 : 0) + retrievalAdjustment)));
+    const recommendationAdjustment = Math.round((recommendationMatchScore - 70) / 5);
+    const hallucinationPenalty = hallucinationStatus === "warn" ? 10 : 0;
+    const regressionPenalty = previous?.result === "pass" && ["warn", "fail"].includes(test.result) ? 8 : 0;
+    const score = Math.max(
+      0,
+      Math.min(
+        100,
+        Math.round(
+          (readiness + toolAverage) / 2 -
+            severityPenalty +
+            (hasAudit ? 8 : 0) +
+            retrievalAdjustment +
+            recommendationAdjustment -
+            hallucinationPenalty -
+            regressionPenalty +
+            Math.min(8, decisionHistory * 2),
+        ),
+      ),
+    );
     const evidenceNote = documents.length
       ? retrievalEvidence.length
         ? ` Retrieval found ${retrievalEvidence.length} supporting chunk${retrievalEvidence.length === 1 ? "" : "s"}.`
         : " Retrieval found no supporting chunks."
       : "";
+    const checks = {
+      retrieval: {
+        status: documents.length ? (retrievalEvidence.length ? "pass" : "warn") : "synthetic",
+        evidenceCount: retrievalEvidence.length,
+      },
+      recommendationMatch: {
+        status: recommendationMatchScore >= 70 ? "pass" : recommendationMatchScore >= 45 ? "warn" : "fail",
+        score: recommendationMatchScore,
+      },
+      hallucination: {
+        status: hallucinationStatus,
+        unsupportedClaims: hallucinationStatus === "warn" ? 1 : 0,
+      },
+      regression: {
+        status: previous ? (previous.result === test.result ? "stable" : "changed") : "new",
+        previousResult: previous?.result || null,
+      },
+    };
+    const base = {
+      ...test,
+      id: evalId,
+      score,
+      checks,
+      retrievalEvidence,
+    };
     if (severity === "Critical" && !hasAudit) {
       return {
-        ...test,
-        id: test.id || `eval-${index + 1}`,
+        ...base,
         result: "fail",
         actual: `Backend gate failed: critical eval requires audit or trace coverage before pilot.${evidenceNote}`,
-        retrievalEvidence: retrievalEvidence.map((item) => item.citation),
       };
     }
     if (score >= 74) {
       return {
-        ...test,
-        id: test.id || `eval-${index + 1}`,
+        ...base,
         result: "pass",
-        actual: `Backend gate passed with score ${score}. Evidence, tool readiness, and controls are sufficient for pilot.${evidenceNote}`,
-        retrievalEvidence: retrievalEvidence.map((item) => item.citation),
+        actual: `Backend gate passed with score ${score}. Evidence, tool readiness, controls, and recommendation match are sufficient for pilot.${evidenceNote}`,
       };
     }
     if (score >= 58) {
       return {
-        ...test,
-        id: test.id || `eval-${index + 1}`,
+        ...base,
         result: "warn",
         actual: `Backend gate warning with score ${score}. Safe for sandbox, but needs stronger coverage before scale-up.${evidenceNote}`,
-        retrievalEvidence: retrievalEvidence.map((item) => item.citation),
       };
     }
     return {
-      ...test,
-      id: test.id || `eval-${index + 1}`,
+      ...base,
       result: "fail",
-      actual: `Backend gate failed with score ${score}. Fix context, tools, or controls before live traffic.${evidenceNote}`,
-      retrievalEvidence: retrievalEvidence.map((item) => item.citation),
+      actual: `Backend gate failed with score ${score}. Fix context, tools, recommendation support, or controls before live traffic.${evidenceNote}`,
     };
   });
 
@@ -832,16 +914,25 @@ function runServerEvalSuite(project = {}, documents = []) {
   const criticalFails = nextEvalCases.filter((test) => test.severity === "Critical" && test.result === "fail").length;
   const gateScore = Math.round((resultCounts.pass * 100 + resultCounts.warn * 70) / Math.max(1, nextEvalCases.length));
   const retrievalCovered = nextEvalCases.filter((test) => Array.isArray(test.retrievalEvidence) && test.retrievalEvidence.length).length;
+  const recommendationMatch = Math.round(
+    nextEvalCases.reduce((sum, test) => sum + (test.checks?.recommendationMatch?.score || 0), 0) / Math.max(1, nextEvalCases.length),
+  );
+  const hallucinationWarnings = nextEvalCases.filter((test) => test.checks?.hallucination?.status !== "pass").length;
+  const regressions = nextEvalCases.filter((test) => test.checks?.regression?.status === "changed").length;
   return {
     evalCases: nextEvalCases,
     summary: {
       gateScore,
-      passed: criticalFails === 0 && gateScore >= 80,
+      passed: criticalFails === 0 && gateScore >= 80 && hallucinationWarnings === 0,
       criticalFails,
       resultCounts,
       toolAverage,
       hasAudit,
       retrievalCoverage: Math.round((retrievalCovered / Math.max(1, nextEvalCases.length)) * 100),
+      recommendationMatch,
+      hallucinationWarnings,
+      regressions,
+      decisionHistory,
       documentCount: documents.length,
       evaluatedAt: new Date().toISOString(),
     },
@@ -1575,6 +1666,11 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/evals/history") {
+    sendJson(res, 200, { ok: true, evalRuns: Array.isArray(db.evalRuns) ? db.evalRuns : [] });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/telemetry") {
     sendJson(res, 200, { ok: true, telemetry: buildTelemetryReport(db) });
     return;
@@ -1797,15 +1893,33 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && url.pathname === "/api/evals/run") {
     const body = await readJsonBody(req);
-    const result = runServerEvalSuite(body.project || db.workspace?.project || {}, Array.isArray(db.documents) ? db.documents : []);
-    const nextDb = appendAudit(db, "evals.run", {
+    const project = body.project || db.workspace?.project || {};
+    const result = runServerEvalSuite(project, Array.isArray(db.documents) ? db.documents : [], {
+      previousEvalRuns: Array.isArray(db.evalRuns) ? db.evalRuns : [],
+      handoffs: Array.isArray(db.handoffs) ? db.handoffs : [],
+      runs: Array.isArray(db.runs) ? db.runs : [],
+    });
+    const evalRun = {
+      id: randomUUID(),
+      createdAt: new Date().toISOString(),
+      clientName: project.clientName || db.workspace?.project?.clientName || "Unknown client",
+      workflowName: project.workflowName || db.workspace?.project?.workflowName || "Unknown workflow",
+      summary: result.summary,
+      evalCases: result.evalCases,
+    };
+    const nextDb = appendAudit({
+      ...db,
+      evalRuns: [evalRun, ...(Array.isArray(db.evalRuns) ? db.evalRuns : [])].slice(0, 100),
+    }, "evals.run", {
       workflowName: body.project?.workflowName || db.workspace?.project?.workflowName,
       gateScore: result.summary.gateScore,
       passed: result.summary.passed,
       retrievalCoverage: result.summary.retrievalCoverage,
+      recommendationMatch: result.summary.recommendationMatch,
+      hallucinationWarnings: result.summary.hallucinationWarnings,
     });
-    await writeDb(nextDb);
-    sendJson(res, 200, { ok: true, ...result });
+    const saved = await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, ...result, evalRun, evalHistory: saved.evalRuns.slice(0, 20) });
     return;
   }
 

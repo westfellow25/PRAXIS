@@ -51,6 +51,7 @@ The backend lives in `server.js` and exposes:
 - `PUT /api/playbooks`
 - `GET /api/runs`
 - `POST /api/runs`
+- `GET /api/evals/history`
 - `GET /api/handoffs`
 - `GET /api/handoffs/alerts`
 - `PATCH /api/handoffs/:id`
@@ -108,7 +109,8 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Manage a Human Handoff Queue created by Agent Runtime, with approve, escalate, block, overdue, due-soon, and escalated SLA reminders saved back to the backend.
 - Calculate annual net value, monthly hours saved, payback, conservative/base/upside scenarios, and runtime telemetry from saved agent runs.
 - Edit eval cases with input, expected output, category, severity, and last actual result.
-- Run a deterministic eval gate that reports pass, warning, failure, critical blockers, and pilot readiness.
+- Run a backend eval gate that reports pass, warning, failure, critical blockers, retrieval coverage, recommendation-match score, hallucination warnings, regressions, and pilot readiness.
+- Track eval run history as a regression baseline across repeated pilot tests.
 - Include retrieval coverage in backend eval runs when Knowledge Base documents exist.
 - Manage a deployment timeline, rollout checklist, blockers, owners, statuses, and exit criteria.
 - Save the current workspace as a reusable playbook.

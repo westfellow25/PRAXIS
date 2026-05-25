@@ -171,6 +171,22 @@ create table eval_cases (
   created_at timestamptz not null default now()
 );
 
+create table eval_runs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references workspaces(id) on delete set null,
+  client_name text not null,
+  workflow_name text not null,
+  gate_score integer,
+  passed boolean not null default false,
+  retrieval_coverage integer not null default 0,
+  recommendation_match integer not null default 0,
+  hallucination_warnings integer not null default 0,
+  regressions integer not null default 0,
+  summary jsonb not null default '{}'::jsonb,
+  eval_cases jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table pilot_runs (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid references workspaces(id) on delete set null,
@@ -246,6 +262,7 @@ create index tools_workspace_idx on tools(workspace_id);
 create index tool_sandbox_runs_workspace_idx on tool_sandbox_runs(workspace_id);
 create index governance_enforcement_workspace_idx on governance_enforcement_runs(workspace_id);
 create index eval_cases_workspace_idx on eval_cases(workspace_id);
+create index eval_runs_workspace_idx on eval_runs(workspace_id);
 create index pilot_runs_workspace_idx on pilot_runs(workspace_id);
 create index handoffs_workspace_idx on handoffs(workspace_id);
 create index handoffs_status_idx on handoffs(status);

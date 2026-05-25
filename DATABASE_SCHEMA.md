@@ -16,6 +16,7 @@ The Postgres-ready draft is in `schema.sql`.
   "workspace": {},
   "playbooks": [],
   "runs": [],
+  "evalRuns": [],
   "handoffs": [],
   "documents": [],
   "auditLog": [],
@@ -43,6 +44,7 @@ The Postgres-ready draft is in `schema.sql`.
     "collections": {
       "playbooks": 2,
       "runs": 12,
+      "evalRuns": 5,
       "handoffs": 4,
       "documents": 3,
       "auditEvents": 42
@@ -174,6 +176,34 @@ Runs are saved from Pilot Console.
   "totalRuns": 12
 }
 ```
+
+## eval run response
+
+`POST /api/evals/run` runs the backend regression gate and stores an immutable eval run in `evalRuns`. The runner checks tool readiness, retrieval coverage, recommendation-match support, hallucination risk, and regression drift from the previous run.
+
+```json
+{
+  "ok": true,
+  "evalRun": {
+    "id": "uuid",
+    "createdAt": "ISO timestamp",
+    "clientName": "Northstar Bank",
+    "workflowName": "AML Alert Briefing",
+    "summary": {
+      "gateScore": 84,
+      "passed": true,
+      "retrievalCoverage": 80,
+      "recommendationMatch": 76,
+      "hallucinationWarnings": 0,
+      "regressions": 0
+    },
+    "evalCases": []
+  },
+  "evalHistory": []
+}
+```
+
+`GET /api/evals/history` returns the latest saved eval runs for the Regression History panel.
 
 ## handoffs
 

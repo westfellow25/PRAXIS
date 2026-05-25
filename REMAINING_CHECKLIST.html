@@ -279,8 +279,8 @@
       </section>
 
       <section class="stats">
-        <article class="stat"><span>Готово</span><strong>15</strong></article>
-        <article class="stat"><span>Частично</span><strong>7</strong></article>
+        <article class="stat"><span>Готово</span><strong>16</strong></article>
+        <article class="stat"><span>Частично</span><strong>6</strong></article>
         <article class="stat"><span>Не начато</span><strong>4</strong></article>
         <article class="stat"><span>Следующий фокус</span><strong>P0</strong></article>
       </section>
@@ -350,9 +350,9 @@
             <span>Tool Fabric</span><strong>OpenAPI to agent-ready tools</strong><span class="badge green">Готово</span>
             <p>Tool inventory, auth, risk, MCP-style manifest, OpenAPI JSON import, MCP server scaffold, Tool Sandbox и failure catalog есть.</p><p>Позже: production API wiring and live tool execution against customer systems.</p><span class="priority">P0</span>
           </div>
-          <div class="row orange">
-            <span>Evals</span><strong>Real eval runner</strong><span class="badge orange">Частично</span>
-            <p>`/api/evals/run` есть, deterministic gate + retrieval evidence coverage.</p><p>Осталось: golden datasets, recommendation match, hallucination checks.</p><span class="priority">P0</span>
+          <div class="row green">
+            <span>Evals</span><strong>Real eval runner</strong><span class="badge green">Готово</span>
+            <p>`/api/evals/run` сохраняет eval history и проверяет retrieval coverage, recommendation match, hallucination warnings и regressions.</p><p>Позже: настоящие customer golden datasets из production connectors.</p><span class="priority">P0</span>
           </div>
           <div class="row orange">
             <span>Pilot</span><strong>Run trace storage</strong><span class="badge orange">Частично</span>

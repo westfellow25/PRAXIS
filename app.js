@@ -16,6 +16,7 @@ const state = {
   handoffAlerts: null,
   telemetry: null,
   databaseStatus: null,
+  evalHistory: [],
   playbookSearch: "",
   documentSearch: "",
   retrieval: { query: "", results: [] },
@@ -922,7 +923,7 @@ async function apiRequest(path, options = {}) {
 
 async function hydrateFromBackend() {
   try {
-    const [workspaceResponse, playbooksResponse, documentsResponse, handoffsResponse, handoffAlertsResponse, telemetryResponse, databaseResponse] = await Promise.all([
+    const [workspaceResponse, playbooksResponse, documentsResponse, handoffsResponse, handoffAlertsResponse, telemetryResponse, databaseResponse, evalHistoryResponse] = await Promise.all([
       apiRequest("/workspace"),
       apiRequest("/playbooks"),
       apiRequest("/documents"),
@@ -930,9 +931,11 @@ async function hydrateFromBackend() {
       apiRequest("/handoffs/alerts"),
       apiRequest("/telemetry"),
       apiRequest("/database/status"),
+      apiRequest("/evals/history"),
     ]);
     state.backendOnline = true;
     state.databaseStatus = databaseResponse.database || null;
+    state.evalHistory = Array.isArray(evalHistoryResponse.evalRuns) ? evalHistoryResponse.evalRuns : [];
 
     if (workspaceResponse.workspace?.project) {
       state.project = normalizeProject(workspaceResponse.workspace.project);
@@ -4088,7 +4091,19 @@ function renderEvals() {
               ? `
                 <div class="eval-evidence span-4">
                   <strong>Retrieved evidence</strong>
-                  <span>${test.retrievalEvidence.map((item) => escapeHtml(`${item.documentName || "Document"} ${item.chunkId || ""}`)).join(" | ")}</span>
+                  <span>${test.retrievalEvidence.map((item) => escapeHtml(typeof item === "string" ? item : `${item.documentName || "Document"} ${item.chunkId || ""}`)).join(" | ")}</span>
+                </div>
+              `
+              : ""
+          }
+          ${
+            test.checks
+              ? `
+                <div class="eval-checks span-4">
+                  <span>Retrieval: ${escapeHtml(test.checks.retrieval?.status || "n/a")}</span>
+                  <span>Recommendation match: ${escapeHtml(test.checks.recommendationMatch?.status || "n/a")} (${Number(test.checks.recommendationMatch?.score || 0)}%)</span>
+                  <span>Hallucination: ${escapeHtml(test.checks.hallucination?.status || "n/a")}</span>
+                  <span>Regression: ${escapeHtml(test.checks.regression?.status || "n/a")}</span>
                 </div>
               `
               : ""
@@ -4105,6 +4120,7 @@ function renderEvals() {
     button.addEventListener("click", () => deleteEvalCase(Number(button.dataset.deleteEval)));
   });
   renderEvalSummary();
+  renderEvalHistory();
 }
 
 function renderEvalSummary() {
@@ -4128,15 +4144,55 @@ function renderEvalSummary() {
     ((resultCounts.pass * 100 + resultCounts.warn * 70) / Math.max(1, state.project.evalCases.length)),
   );
   const retrievalCovered = state.project.evalCases.filter((test) => Array.isArray(test.retrievalEvidence) && test.retrievalEvidence.length).length;
+  const checkedCases = state.project.evalCases.filter((test) => test.checks?.recommendationMatch);
+  const recommendationMatch = checkedCases.length
+    ? Math.round(checkedCases.reduce((sum, test) => sum + Number(test.checks.recommendationMatch.score || 0), 0) / checkedCases.length)
+    : null;
+  const hallucinationWarnings = state.project.evalCases.filter((test) => test.checks?.hallucination?.status && test.checks.hallucination.status !== "pass").length;
   const retrievalCopy = retrievalCovered ? ` Retrieval evidence covered ${retrievalCovered}/${state.project.evalCases.length} cases.` : "";
+  const qualityCopy = recommendationMatch === null ? "" : ` Recommendation match ${recommendationMatch}%; hallucination warnings ${hallucinationWarnings}.`;
   const passed = criticalFails === 0 && gateScore >= 80;
   document.querySelector("#eval-status").textContent = passed ? "Ready for pilot" : "Blocked";
   document.querySelector("#eval-status").className = `status-pill ${passed ? "green" : "amber"}`;
   document.querySelector("#eval-summary-title").textContent = passed ? "Pilot gate passed" : "Pilot gate blocked";
   document.querySelector("#eval-summary-copy").textContent = passed
-    ? `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. No critical blockers remain.${retrievalCopy}`
-    : `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Resolve critical or low-score cases before production.${retrievalCopy}`;
+    ? `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. No critical blockers remain.${retrievalCopy}${qualityCopy}`
+    : `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Resolve critical or low-score cases before production.${retrievalCopy}${qualityCopy}`;
   document.querySelector("#score-ring span").textContent = String(gateScore);
+}
+
+function renderEvalHistory() {
+  const target = document.querySelector("#eval-history");
+  if (!target) return;
+  const history = Array.isArray(state.evalHistory) ? state.evalHistory.slice(0, 8) : [];
+  if (!history.length) {
+    target.innerHTML = `
+      <article class="eval-history-card empty">
+        <strong>No backend eval history yet</strong>
+        <p>Run evals once to create a regression baseline with retrieval, recommendation-match, and hallucination checks.</p>
+      </article>
+    `;
+    return;
+  }
+  target.innerHTML = history
+    .map((run) => {
+      const summary = run.summary || {};
+      const counts = summary.resultCounts || { pass: 0, warn: 0, fail: 0 };
+      return `
+        <article class="eval-history-card ${summary.passed ? "passed" : "blocked"}">
+          <div>
+            <strong>${escapeHtml(run.workflowName || "Eval run")}</strong>
+            <p>${new Date(run.createdAt || summary.evaluatedAt || Date.now()).toLocaleString()}</p>
+          </div>
+          <span>${Number(summary.gateScore || 0)}/100 gate</span>
+          <span>${Number(summary.recommendationMatch || 0)}% match</span>
+          <span>${Number(summary.retrievalCoverage || 0)}% retrieval</span>
+          <span>${Number(summary.hallucinationWarnings || 0)} hallucination warnings</span>
+          <span>${counts.pass || 0} pass · ${counts.warn || 0} warn · ${counts.fail || 0} fail</span>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 async function runEvals() {
@@ -4147,7 +4203,8 @@ async function runEvals() {
       body: JSON.stringify({ project: state.project }),
     });
     state.project.evalCases = response.evalCases;
-    const { resultCounts, gateScore, passed, retrievalCoverage } = response.summary;
+    state.evalHistory = Array.isArray(response.evalHistory) ? response.evalHistory : state.evalHistory;
+    const { resultCounts, gateScore, passed, retrievalCoverage, recommendationMatch, hallucinationWarnings, regressions } = response.summary;
     saveProject("Backend evals run");
     renderEvals();
     renderContextGraph();
@@ -4158,8 +4215,8 @@ async function runEvals() {
     document.querySelector("#eval-status").className = `status-pill ${passed ? "green" : "amber"}`;
     document.querySelector("#eval-summary-title").textContent = passed ? "Pilot gate passed" : "Pilot gate blocked";
     document.querySelector("#eval-summary-copy").textContent = passed
-      ? `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Backend eval runner found no critical blockers. Retrieval coverage: ${retrievalCoverage}%.`
-      : `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Backend eval runner found unresolved blockers. Retrieval coverage: ${retrievalCoverage}%.`;
+      ? `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Retrieval ${retrievalCoverage}%, recommendation match ${recommendationMatch}%, hallucination warnings ${hallucinationWarnings}, regressions ${regressions}.`
+      : `${resultCounts.pass} passed, ${resultCounts.warn} warnings, ${resultCounts.fail} failed. Retrieval ${retrievalCoverage}%, recommendation match ${recommendationMatch}%, hallucination warnings ${hallucinationWarnings}, regressions ${regressions}.`;
     document.querySelector("#score-ring span").textContent = String(gateScore);
     switchView("evals");
     return;

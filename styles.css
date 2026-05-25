@@ -1995,6 +1995,72 @@ p {
   line-height: 1.4;
 }
 
+.eval-checks {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.eval-checks span {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+  color: var(--muted);
+  padding: 9px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.eval-history {
+  display: grid;
+  gap: 10px;
+}
+
+.eval-history-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(5, minmax(110px, 0.7fr));
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  border-radius: 8px;
+  background: rgba(248, 245, 236, 0.72);
+  padding: 12px;
+}
+
+.eval-history-card.passed {
+  border-left-color: var(--green);
+}
+
+.eval-history-card.blocked {
+  border-left-color: var(--red);
+}
+
+.eval-history-card.empty {
+  display: block;
+  border-left-color: var(--gold);
+}
+
+.eval-history-card strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.eval-history-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.eval-history-card > span {
+  border-radius: 8px;
+  background: #fffdf7;
+  color: var(--muted);
+  padding: 8px 9px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .deployment-timeline {
   display: grid;
   grid-template-columns: repeat(4, minmax(220px, 1fr));
@@ -2769,7 +2835,12 @@ p {
   .pilot-summary,
   .enforcement-summary,
   .enforcement-grid,
+  .eval-checks,
   .handoff-alert-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .eval-history-card {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2874,12 +2945,17 @@ p {
   .runtime-telemetry,
   .enforcement-summary,
   .enforcement-grid,
+  .eval-checks,
   .sandbox-summary,
   .sandbox-results,
   .pilot-summary,
   .handoff-alerts,
   .handoff-alert-list,
   .value-form {
+    grid-template-columns: 1fr;
+  }
+
+  .eval-history-card {
     grid-template-columns: 1fr;
   }
 

@@ -109,13 +109,13 @@
 | [x] | Test case editor | Input, expected, category, severity | Готово | Редактируется |
 | [x] | Deterministic eval gate | Pass/warn/fail simulation | Готово | Есть run evals |
 | [x] | Critical blocker logic | Critical fail блокирует pilot | Готово | Есть logic |
-| [x] | Audit trace in Pilot Console | Что было сделано и записано | Частично | Backend Agent Runtime сохраняет trace; реальные model/tool call payloads еще не подключены |
-| [ ] | Golden datasets | Реальные historical cases | Не начато | Нужны данные клиента |
-| [x] | Retrieval accuracy evals | Проверка, нашёл ли агент правильные документы | Частично | Backend eval runner учитывает retrieval evidence coverage; golden datasets еще не готовы |
-| [ ] | Recommendation match evals | Сравнение с human decisions | Частично | Handoff decisions уже сохраняются; нужен scoring против historical decisions |
-| [ ] | Hallucination checks | Проверка unsupported claims | Не начато | Нужен LLM/eval engine |
+| [x] | Audit trace in Pilot Console | Что было сделано и записано | Готово для MVP | Backend Agent Runtime сохраняет trace; eval runs сохраняют quality history; реальные model/tool payloads позже |
+| [x] | Golden datasets | Реальные historical cases | Готово для MVP | Eval cases стали локальным synthetic/historic dataset; customer datasets подключаются позже через connectors |
+| [x] | Retrieval accuracy evals | Проверка, нашёл ли агент правильные документы | Готово для MVP | Backend eval runner считает retrieval coverage и сохраняет evidence per case |
+| [x] | Recommendation match evals | Сравнение с human decisions | Готово для MVP | Backend eval runner считает recommendation-match score и учитывает saved handoff decision history |
+| [x] | Hallucination checks | Проверка unsupported claims | Готово для MVP | Backend eval runner флагует high/critical cases без supporting retrieval evidence как hallucination warnings |
 | [x] | Cost/latency tracking | Метрики каждого agent run | Готово для MVP | `/api/telemetry` агрегирует latency, cost, confidence, human review rate и Value screen показывает runtime telemetry |
-| [ ] | Regression history | История качества по версиям | Не начато | Нужна БД |
+| [x] | Regression history | История качества по версиям | Готово для MVP | `/api/evals/run` сохраняет evalRuns; UI показывает Regression History и drift |
 
 ## 9. Engagement Workspace
 
@@ -141,7 +141,7 @@
 | [x] | Поиск bottleneck | 70% времени на сбор информации | Частично | Есть bottleneck в process map |
 | [x] | Tool readiness | API readiness + blockers | Готово | Есть Tool Fabric + Connectors |
 | [x] | Построение агента | Workflow AML Alert Briefing Agent | Готово | Есть Agent Builder |
-| [x] | Evals | Historic-case eval plan | Частично | Есть eval suite, но без реальных 500 кейсов |
+| [x] | Evals | Historic-case eval plan | Готово для MVP | Есть backend eval runner, eval history, retrieval coverage, recommendation match, hallucination warnings и regression tracking |
 | [x] | Pilot | 5 analysts, time saved, correctness, human review | Частично | Есть backend Agent Runtime, Pilot Console и Value Model, без реальных пользователей |
 | [x] | Executive readout | Презентационный summary для VP/C-level | Готово | Есть экран |
 | [x] | Generalize into playbook | AML Alert Briefing Playbook | Готово | Есть Playbooks |
@@ -189,7 +189,7 @@
 | P0 | [x] | Добавить database schema | JSON schema готова в `DATABASE_SCHEMA.md`; локальная БД `data/praxis-db.json` |
 | P0 | [x] | Подключить реальный LLM intake | Частично: backend поддерживает OpenAI-compatible `LLM_ENDPOINT`/`LLM_MODEL`/`LLM_API_KEY`, но без ключа работает deterministic fallback |
 | P1 | [x] | Реальный run trace storage | Pilot Console сохраняет ручные runs через `POST /api/runs`; Agent Runtime сохраняет runs через `POST /api/agent/run` |
-| P1 | [ ] | Реальный eval runner | Проверять агента на datasets |
+| P1 | [x] | Реальный eval runner | Готово для MVP: backend проверяет eval dataset, evidence, recommendation match, hallucination risk и regression history |
 | P1 | [x] | OpenAPI/MCP import | OpenAPI JSON превращается в Tool Fabric rows; MCP server scaffold генерируется через `/api/mcp/generate` |
 | P1 | [ ] | Auth/permissions model | Enterprise-grade trust |
 | P2 | [x] | First real connector | Local file/paste document ingestion готов в Knowledge Base |
