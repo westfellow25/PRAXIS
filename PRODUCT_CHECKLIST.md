@@ -142,7 +142,7 @@
 | [x] | Tool readiness | API readiness + blockers | Готово | Есть Tool Fabric + Connectors |
 | [x] | Построение агента | Workflow AML Alert Briefing Agent | Готово | Есть Agent Builder |
 | [x] | Evals | Historic-case eval plan | Готово для MVP | Есть backend eval runner, eval history, retrieval coverage, recommendation match, hallucination warnings и regression tracking |
-| [x] | Pilot | 5 analysts, time saved, correctness, human review | Частично | Есть backend Agent Runtime, Pilot Console и Value Model, без реальных пользователей |
+| [x] | Pilot | 5 analysts, time saved, correctness, human review | Готово для MVP | Есть backend Agent Runtime, Pilot Console, saved run history, Human Handoff Queue и Value Model; реальные пользователи позже |
 | [x] | Executive readout | Презентационный summary для VP/C-level | Готово | Есть экран |
 | [x] | Generalize into playbook | AML Alert Briefing Playbook | Готово | Есть Playbooks |
 
@@ -188,7 +188,7 @@
 | P0 | [x] | Добавить backend | Локальный Node backend готов без внешних зависимостей |
 | P0 | [x] | Добавить database schema | JSON schema готова в `DATABASE_SCHEMA.md`; локальная БД `data/praxis-db.json` |
 | P0 | [x] | Подключить реальный LLM intake | Частично: backend поддерживает OpenAI-compatible `LLM_ENDPOINT`/`LLM_MODEL`/`LLM_API_KEY`, но без ключа работает deterministic fallback |
-| P1 | [x] | Реальный run trace storage | Pilot Console сохраняет ручные runs через `POST /api/runs`; Agent Runtime сохраняет runs через `POST /api/agent/run` |
+| P1 | [x] | Реальный run trace storage | Готово для MVP: `GET /api/runs`, `POST /api/runs`, Agent Runtime persistence и Run History UI |
 | P1 | [x] | Реальный eval runner | Готово для MVP: backend проверяет eval dataset, evidence, recommendation match, hallucination risk и regression history |
 | P1 | [x] | OpenAPI/MCP import | OpenAPI JSON превращается в Tool Fabric rows; MCP server scaffold генерируется через `/api/mcp/generate` |
 | P1 | [ ] | Auth/permissions model | Enterprise-grade trust |

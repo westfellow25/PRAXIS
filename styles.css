@@ -2541,6 +2541,48 @@ p {
   text-align: center;
 }
 
+.run-history {
+  display: grid;
+  gap: 10px;
+}
+
+.run-history-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(5, minmax(110px, 0.7fr));
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--ink);
+  border-radius: 8px;
+  background: rgba(248, 245, 236, 0.72);
+  padding: 12px;
+}
+
+.run-history-card.empty {
+  display: block;
+  border-left-color: var(--gold);
+}
+
+.run-history-card strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.run-history-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.run-history-card > span {
+  border-radius: 8px;
+  background: #fffdf7;
+  color: var(--muted);
+  padding: 8px 9px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .evidence-card strong,
 .decision-card strong {
   color: var(--ink);
@@ -2844,6 +2886,10 @@ p {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .run-history-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .deployment-editor-card {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2956,6 +3002,10 @@ p {
   }
 
   .eval-history-card {
+    grid-template-columns: 1fr;
+  }
+
+  .run-history-card {
     grid-template-columns: 1fr;
   }
 

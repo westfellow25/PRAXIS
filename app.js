@@ -12,6 +12,7 @@ const state = {
   project: null,
   playbooks: [],
   documents: [],
+  runs: [],
   handoffs: [],
   handoffAlerts: null,
   telemetry: null,
@@ -923,10 +924,11 @@ async function apiRequest(path, options = {}) {
 
 async function hydrateFromBackend() {
   try {
-    const [workspaceResponse, playbooksResponse, documentsResponse, handoffsResponse, handoffAlertsResponse, telemetryResponse, databaseResponse, evalHistoryResponse] = await Promise.all([
+    const [workspaceResponse, playbooksResponse, documentsResponse, runsResponse, handoffsResponse, handoffAlertsResponse, telemetryResponse, databaseResponse, evalHistoryResponse] = await Promise.all([
       apiRequest("/workspace"),
       apiRequest("/playbooks"),
       apiRequest("/documents"),
+      apiRequest("/runs"),
       apiRequest("/handoffs"),
       apiRequest("/handoffs/alerts"),
       apiRequest("/telemetry"),
@@ -963,6 +965,10 @@ async function hydrateFromBackend() {
     if (Array.isArray(documentsResponse.documents)) {
       state.documents = documentsResponse.documents.map(normalizeDocument);
       localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(state.documents));
+    }
+
+    if (Array.isArray(runsResponse.runs)) {
+      state.runs = runsResponse.runs;
     }
 
     if (Array.isArray(handoffsResponse.handoffs)) {
@@ -3237,6 +3243,44 @@ function renderPilotRunConsole() {
       <p>${run.requiresHumanReview ? "Human review required before downstream action." : "No blocking review gate for controlled action draft."}</p>
     </article>
   `;
+  renderRunHistory();
+}
+
+function renderRunHistory() {
+  const target = document.querySelector("#run-history");
+  if (!target) return;
+  const runs = Array.isArray(state.runs) ? state.runs.slice(0, 8) : [];
+  if (!runs.length) {
+    target.innerHTML = `
+      <article class="run-history-card empty">
+        <strong>No saved runs yet</strong>
+        <p>Run the backend Agent Runtime or press Save run to create the first replayable trace.</p>
+      </article>
+    `;
+    return;
+  }
+  target.innerHTML = runs
+    .map((savedRun) => {
+      const payload = savedRun.payload || savedRun;
+      const trace = payload.trace || savedRun.trace || [];
+      const evidenceCount = payload.retrievalResults?.length || 0;
+      const toolCount = payload.callableTools?.length || 0;
+      const review = payload.requiresHumanReview ? "Human review" : "No review gate";
+      return `
+        <article class="run-history-card">
+          <div>
+            <strong>${escapeHtml(savedRun.workflowName || payload.workflowName || "Pilot run")}</strong>
+            <p>${escapeHtml(savedRun.id || payload.id || "local-run")} · ${new Date(savedRun.createdAt || payload.createdAt || Date.now()).toLocaleString()}</p>
+          </div>
+          <span>${escapeHtml(savedRun.outcome || payload.outcome || "Recorded")}</span>
+          <span>${Number(savedRun.confidence || payload.confidence || 0)}% confidence</span>
+          <span>${trace.length} trace steps</span>
+          <span>${evidenceCount} evidence · ${toolCount} tools</span>
+          <span>${review}</span>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function renderHandoffQueue() {
@@ -3347,6 +3391,19 @@ async function runAgentRuntime() {
       body: JSON.stringify({ project: state.project, caseInput }),
     });
     state.agentRuntimeRun = response.run;
+    state.runs = [
+      {
+        id: response.run.id,
+        createdAt: response.run.createdAt,
+        clientName: response.run.clientName,
+        workflowName: response.run.workflowName,
+        outcome: response.run.outcome,
+        confidence: response.run.confidence,
+        trace: response.run.trace,
+        payload: response.run,
+      },
+      ...state.runs.filter((item) => item.id !== response.run.id),
+    ].slice(0, 100);
     if (response.run?.governanceEnforcement) {
       state.governanceEnforcement = response.run.governanceEnforcement;
     }
@@ -3457,8 +3514,10 @@ async function savePilotRun() {
       }),
     });
     state.telemetry = normalizeTelemetry(response.telemetry);
+    state.runs = [response.run, ...state.runs.filter((item) => item.id !== response.run.id)].slice(0, 100);
     state.backendOnline = true;
     setStorageStatus(`Run saved ${response.run.id.slice(0, 8)}`, "green");
+    renderPilotRunConsole();
     renderValueModel();
     renderReadout();
   } catch (error) {
