@@ -13,6 +13,10 @@ const state = {
   playbooks: [],
   playbookRegistry: [],
   documents: [],
+  authSession: null,
+  securityReport: null,
+  collaboration: { comments: [], tasks: [] },
+  deploymentManifest: null,
   runs: [],
   handoffs: [],
   handoffAlerts: null,
@@ -928,11 +932,28 @@ async function apiRequest(path, options = {}) {
 
 async function hydrateFromBackend() {
   try {
-    const [workspaceResponse, playbooksResponse, registryResponse, documentsResponse, runsResponse, handoffsResponse, handoffAlertsResponse, telemetryResponse, databaseResponse, evalHistoryResponse] = await Promise.all([
+    const [
+      workspaceResponse,
+      playbooksResponse,
+      registryResponse,
+      documentsResponse,
+      authResponse,
+      collaborationResponse,
+      deploymentManifestResponse,
+      runsResponse,
+      handoffsResponse,
+      handoffAlertsResponse,
+      telemetryResponse,
+      databaseResponse,
+      evalHistoryResponse,
+    ] = await Promise.all([
       apiRequest("/workspace"),
       apiRequest("/playbooks"),
       apiRequest("/playbooks/registry"),
       apiRequest("/documents"),
+      apiRequest("/auth/session"),
+      apiRequest("/collaboration"),
+      apiRequest("/deployment/manifest"),
       apiRequest("/runs"),
       apiRequest("/handoffs"),
       apiRequest("/handoffs/alerts"),
@@ -943,6 +964,9 @@ async function hydrateFromBackend() {
     state.backendOnline = true;
     state.databaseStatus = databaseResponse.database || null;
     state.evalHistory = Array.isArray(evalHistoryResponse.evalRuns) ? evalHistoryResponse.evalRuns : [];
+    state.authSession = authResponse.session || null;
+    state.collaboration = collaborationResponse.collaboration || { comments: [], tasks: [] };
+    state.deploymentManifest = deploymentManifestResponse.manifest || null;
 
     if (workspaceResponse.workspace?.project) {
       state.project = normalizeProject(workspaceResponse.workspace.project);
@@ -2724,6 +2748,34 @@ async function ingestDocument(name, content, sourceType = "pasted") {
   renderReadout();
 }
 
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 1) {
+    binary += String.fromCharCode(bytes[index]);
+  }
+  return btoa(binary);
+}
+
+async function ingestBinaryDocument(file) {
+  try {
+    const response = await apiRequest("/documents/upload", {
+      method: "POST",
+      body: JSON.stringify({
+        name: file.name,
+        mimeType: file.type,
+        contentBase64: arrayBufferToBase64(await file.arrayBuffer()),
+      }),
+    });
+    state.documents = [normalizeDocument(response.document), ...state.documents.filter((document) => document.id !== response.document.id)];
+    state.backendOnline = true;
+    setStorageStatus(`${response.extraction.sourceType} ingested`, "green");
+  } catch (error) {
+    console.info("Binary document ingestion failed", error);
+    setStorageStatus("PDF/DOCX ingestion failed", "amber");
+  }
+}
+
 async function ingestPastedDocument() {
   const nameInput = document.querySelector("#document-name");
   const textArea = document.querySelector("#document-text");
@@ -2735,9 +2787,18 @@ async function ingestPastedDocument() {
 async function ingestDocumentFiles(event) {
   const files = [...(event.target.files || [])];
   for (const file of files) {
-    const content = await file.text();
-    await ingestDocument(file.name, content, "file");
+    if (/\.(pdf|docx)$/i.test(file.name)) {
+      await ingestBinaryDocument(file);
+    } else {
+      const content = await file.text();
+      await ingestDocument(file.name, content, "file");
+    }
   }
+  saveDocumentsLocal();
+  renderDocuments();
+  renderContextGraph();
+  refreshRetrievalEvidence();
+  renderReadout();
   event.target.value = "";
 }
 
@@ -4584,6 +4645,270 @@ function deleteEvalCase(index) {
   renderContextGraph();
 }
 
+function getUserName(userId) {
+  return state.authSession?.users?.find((user) => user.id === userId)?.name || userId || "Unknown user";
+}
+
+function renderSecurity() {
+  const session = state.authSession;
+  const report = state.securityReport;
+  const user = session?.user;
+  const users = session?.users || [];
+  const permissions = session?.permissions || [];
+  const health = report ? report.score : users.length ? 75 : 0;
+  const healthEl = document.querySelector("#security-health");
+  if (!healthEl) return;
+  healthEl.textContent = report ? `${report.score}% secure` : "Session ready";
+  healthEl.className = `status-pill ${report?.passed ? "green" : "amber"}`;
+
+  document.querySelector("#security-summary").innerHTML = `
+    <article class="security-card">
+      <span>Active user</span>
+      <strong>${escapeHtml(user?.name || "No user")}</strong>
+      <p>${escapeHtml(user ? `${user.role} / ${user.workspaceRole}` : "Backend auth session not loaded yet.")}</p>
+    </article>
+    <article class="security-card">
+      <span>Permissions</span>
+      <strong>${permissions.length}</strong>
+      <p>${escapeHtml(permissions.join(", ") || "No permissions assigned.")}</p>
+    </article>
+    <article class="security-card">
+      <span>Security score</span>
+      <strong>${health}%</strong>
+      <p>${report?.passed ? "No failing security gates in MVP check." : "Run the check before inviting external users."}</p>
+    </article>
+  `;
+
+  document.querySelector("#user-list").innerHTML = users
+    .map(
+      (item) => `
+        <article class="user-card ${item.id === user?.id ? "active" : ""}">
+          <div>
+            <span>${escapeHtml(item.role)} / ${escapeHtml(item.workspaceRole)}</span>
+            <strong>${escapeHtml(item.name)}</strong>
+            <p>${escapeHtml(item.email)}</p>
+          </div>
+          <button class="ghost-button small" data-switch-user="${escapeHtml(item.id)}">${item.id === user?.id ? "Active" : "Switch"}</button>
+        </article>
+      `,
+    )
+    .join("");
+
+  document.querySelector("#security-findings").innerHTML = report
+    ? report.findings
+        .map(
+          (finding) => `
+            <article class="security-finding ${finding.status}">
+              <strong>${escapeHtml(finding.area)}</strong>
+              <span>${escapeHtml(finding.status.toUpperCase())}</span>
+              <p>${escapeHtml(finding.detail)}</p>
+            </article>
+          `,
+        )
+        .join("")
+    : `<article class="empty-state">Run security check to validate SSO, SCIM, RBAC, MFA, least privilege, and audit readiness.</article>`;
+
+  document.querySelector("#permission-matrix").innerHTML = Object.entries(session?.rolePermissions || {})
+    .map(
+      ([role, items]) => `
+        <article class="permission-row">
+          <strong>${escapeHtml(role)}</strong>
+          <div class="tag-list">${items.map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join("")}</div>
+        </article>
+      `,
+    )
+    .join("");
+
+  document.querySelectorAll("[data-switch-user]").forEach((button) => {
+    button.addEventListener("click", () => switchAuthUser(button.dataset.switchUser));
+  });
+}
+
+async function switchAuthUser(userId) {
+  try {
+    const response = await apiRequest("/auth/switch-user", {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    });
+    state.authSession = response.session;
+    state.backendOnline = true;
+    setStorageStatus(`Switched to ${response.session.user.name}`, "green");
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("Could not switch user", error);
+    setStorageStatus("User switch failed", "amber");
+  }
+  renderSecurity();
+}
+
+async function runSecurityCheck() {
+  try {
+    const response = await apiRequest("/security/check", { method: "POST", body: JSON.stringify({}) });
+    state.securityReport = response.security;
+    state.authSession = response.security.session;
+    state.backendOnline = true;
+    setStorageStatus(`Security ${response.security.score}%`, "green");
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("Security check failed", error);
+    setStorageStatus("Security check failed", "amber");
+  }
+  renderSecurity();
+  renderDatabaseStatus();
+}
+
+async function syncScim() {
+  const manifest = {
+    source: "Demo SCIM sync",
+    users: [
+      { name: "Aida FDE", email: "aida@praxis.local", role: "fde", workspaceRole: "Owner" },
+      { name: "Mira Compliance", email: "mira@northstar.local", role: "compliance", workspaceRole: "Approver" },
+      { name: "Tim Client Ops", email: "tim@northstar.local", role: "client", workspaceRole: "Contributor" },
+      { name: "Rina Executive", email: "rina@northstar.local", role: "executive", workspaceRole: "Viewer" },
+    ],
+  };
+  try {
+    const response = await apiRequest("/scim/sync", {
+      method: "POST",
+      body: JSON.stringify({ manifest }),
+    });
+    state.authSession = response.session;
+    state.securityReport = response.security;
+    state.backendOnline = true;
+    setStorageStatus("SCIM synced", "green");
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("SCIM sync failed", error);
+    setStorageStatus("SCIM sync failed", "amber");
+  }
+  renderSecurity();
+  renderDatabaseStatus();
+}
+
+function renderCollaboration() {
+  const collaboration = state.collaboration || { comments: [], tasks: [] };
+  const comments = Array.isArray(collaboration.comments) ? collaboration.comments : [];
+  const tasks = Array.isArray(collaboration.tasks) ? collaboration.tasks : [];
+  const commentList = document.querySelector("#comment-list");
+  if (!commentList) return;
+  commentList.innerHTML = comments.length
+    ? comments
+        .map(
+          (comment) => `
+            <article class="collab-item">
+              <div>
+                <span>${escapeHtml(comment.surface)} / ${escapeHtml(comment.status)}</span>
+                <strong>${escapeHtml(getUserName(comment.authorId))}</strong>
+              </div>
+              <p>${escapeHtml(comment.body)}</p>
+            </article>
+          `,
+        )
+        .join("")
+    : `<article class="empty-state">No comments yet.</article>`;
+
+  document.querySelector("#task-list").innerHTML = tasks.length
+    ? tasks
+        .map(
+          (task) => `
+            <article class="collab-item ${task.priority}">
+              <div>
+                <span>${escapeHtml(task.priority)} / ${escapeHtml(task.status)} / due ${escapeHtml(task.due)}</span>
+                <strong>${escapeHtml(task.title)}</strong>
+              </div>
+              <p>Owner: ${escapeHtml(getUserName(task.ownerId))}</p>
+            </article>
+          `,
+        )
+        .join("")
+    : `<article class="empty-state">No shared tasks yet.</article>`;
+}
+
+async function addCollabComment() {
+  const input = document.querySelector("#collab-comment-body");
+  const body = input.value.trim();
+  if (!body) return;
+  try {
+    const response = await apiRequest("/collaboration/comments", {
+      method: "POST",
+      body: JSON.stringify({ body, surface: state.activeView || "Workspace" }),
+    });
+    state.collaboration = response.collaboration;
+    input.value = "";
+    setStorageStatus("Comment added", "green");
+  } catch (error) {
+    console.info("Comment add failed", error);
+    setStorageStatus("Comment failed", "amber");
+  }
+  renderCollaboration();
+  renderDatabaseStatus();
+}
+
+async function addCollabTask() {
+  const titleInput = document.querySelector("#collab-task-title");
+  const dueInput = document.querySelector("#collab-task-due");
+  const title = titleInput.value.trim();
+  if (!title) return;
+  try {
+    const response = await apiRequest("/collaboration/tasks", {
+      method: "POST",
+      body: JSON.stringify({ title, due: dueInput.value.trim() || "This week", ownerId: state.authSession?.user?.id || "user-fde" }),
+    });
+    state.collaboration = response.collaboration;
+    titleInput.value = "";
+    setStorageStatus("Task added", "green");
+  } catch (error) {
+    console.info("Task add failed", error);
+    setStorageStatus("Task failed", "amber");
+  }
+  renderCollaboration();
+  renderDatabaseStatus();
+}
+
+function renderDeploymentManifest() {
+  const manifest = state.deploymentManifest;
+  const container = document.querySelector("#deployment-manifest");
+  if (!container) return;
+  if (!manifest) {
+    container.innerHTML = `<article class="empty-state">Refresh manifest to generate Docker, Cloud Run, health check, and secrets guidance.</article>`;
+    return;
+  }
+  container.innerHTML = `
+    <div class="manifest-grid">
+      <article>
+        <span>Service</span>
+        <strong>${escapeHtml(manifest.serviceName)}</strong>
+        <p>${escapeHtml(manifest.mode)}</p>
+      </article>
+      <article>
+        <span>Docker</span>
+        <strong>Ready</strong>
+        <p>${escapeHtml(manifest.docker.build)}</p>
+      </article>
+      <article>
+        <span>Secrets</span>
+        <strong>${manifest.requiredSecrets.filter((secret) => secret.configured).length}/${manifest.requiredSecrets.length}</strong>
+        <p>${escapeHtml(manifest.requiredSecrets.map((secret) => `${secret.name}${secret.configured ? " ok" : " missing"}`).join(", "))}</p>
+      </article>
+    </div>
+    <pre class="manifest-preview">${escapeHtml(JSON.stringify(manifest, null, 2))}</pre>
+  `;
+}
+
+async function refreshDeploymentManifest() {
+  try {
+    const response = await apiRequest("/deployment/manifest");
+    state.deploymentManifest = response.manifest;
+    state.backendOnline = true;
+    setStorageStatus("Deployment manifest ready", "green");
+  } catch (error) {
+    state.backendOnline = false;
+    console.info("Deployment manifest failed", error);
+    setStorageStatus("Manifest failed", "amber");
+  }
+  renderDeploymentManifest();
+}
+
 function getDeploymentHealth() {
   const toolAverage = Math.round(
     state.project.tools.reduce((sum, tool) => sum + scoreTool(tool), 0) / Math.max(1, state.project.tools.length),
@@ -5241,10 +5566,13 @@ function renderAll(options = {}) {
   renderToolFabric();
   renderToolSandbox();
   renderGovernance();
+  renderSecurity();
+  renderCollaboration();
   renderPilotRunConsole();
   renderHandoffQueue();
   renderEvals();
   renderDeploymentPlan();
+  renderDeploymentManifest();
   renderReadout();
   renderPlaybooks();
   renderDatabaseStatus();
@@ -5304,6 +5632,10 @@ document.querySelector("#add-policy").addEventListener("click", addPolicy);
 document.querySelector("#add-approval").addEventListener("click", addApproval);
 document.querySelector("#run-governance-check").addEventListener("click", runGovernanceCheck);
 document.querySelector("#run-governance-enforcement").addEventListener("click", runGovernanceEnforcement);
+document.querySelector("#run-security-check").addEventListener("click", runSecurityCheck);
+document.querySelector("#sync-scim").addEventListener("click", syncScim);
+document.querySelector("#add-collab-comment").addEventListener("click", addCollabComment);
+document.querySelector("#add-collab-task").addEventListener("click", addCollabTask);
 document.querySelector("#refresh-pilot-run").addEventListener("click", async () => {
   state.agentRuntimeRun = null;
   await refreshRetrievalEvidence();
@@ -5315,6 +5647,7 @@ document.querySelector("#add-eval-case").addEventListener("click", addEvalCase);
 document.querySelector("#add-milestone").addEventListener("click", addMilestone);
 document.querySelector("#add-blocker").addEventListener("click", addBlocker);
 document.querySelector("#add-checklist-item").addEventListener("click", addChecklistItem);
+document.querySelector("#refresh-deployment-manifest").addEventListener("click", refreshDeploymentManifest);
 document.querySelector("#save-playbook").addEventListener("click", saveCurrentAsPlaybook);
 document.querySelector("#publish-current-playbook").addEventListener("click", () => publishPlaybook());
 document.querySelector("#playbook-search").addEventListener("input", (event) => {

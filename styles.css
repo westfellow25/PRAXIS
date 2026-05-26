@@ -1489,6 +1489,128 @@ p {
   line-height: 1.35;
 }
 
+.security-summary,
+.manifest-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.security-card,
+.manifest-grid article,
+.user-card,
+.security-finding,
+.permission-row,
+.collab-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(248, 245, 236, 0.72);
+  padding: 14px;
+}
+
+.security-card span,
+.manifest-grid span,
+.user-card span,
+.security-finding span,
+.collab-item span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.security-card strong,
+.manifest-grid strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 22px;
+}
+
+.security-card p,
+.manifest-grid p,
+.user-card p,
+.security-finding p,
+.collab-item p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.user-list,
+.security-findings,
+.permission-matrix,
+.comment-list,
+.task-list,
+.deployment-manifest {
+  display: grid;
+  gap: 10px;
+}
+
+.user-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.user-card.active {
+  border-left: 5px solid var(--green);
+}
+
+.security-finding,
+.collab-item {
+  display: grid;
+  gap: 8px;
+  border-left-width: 5px;
+}
+
+.security-finding.pass {
+  border-left-color: var(--green);
+}
+
+.security-finding.warn {
+  border-left-color: var(--gold);
+}
+
+.security-finding.fail,
+.collab-item.High {
+  border-left-color: var(--red);
+}
+
+.permission-row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.collab-form {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.collab-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.collab-form input,
+.collab-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  padding: 10px 11px;
+}
+
 .document-actions {
   display: flex;
   flex-wrap: wrap;
@@ -3070,7 +3192,9 @@ p {
   }
 
   .connector-test-summary,
-  .connector-test-checks {
+  .connector-test-checks,
+  .security-summary,
+  .manifest-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -3205,6 +3329,10 @@ p {
   .connector-editor-card,
   .connector-test-summary,
   .connector-test-checks,
+  .security-summary,
+  .manifest-grid,
+  .user-card,
+  .permission-row,
   .document-card,
   .ingestion-step,
   .trace-step,

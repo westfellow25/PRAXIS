@@ -13,6 +13,8 @@ The Postgres-ready draft is in `schema.sql`.
   "schemaVersion": 1,
   "createdAt": "ISO timestamp",
   "updatedAt": "ISO timestamp",
+  "auth": {},
+  "collaboration": {},
   "workspace": {},
   "playbooks": [],
   "playbookRegistry": [],
@@ -45,6 +47,9 @@ The Postgres-ready draft is in `schema.sql`.
       "modifiedAt": "ISO timestamp"
     },
     "collections": {
+      "users": 4,
+      "comments": 2,
+      "tasks": 2,
       "playbooks": 2,
       "playbookRegistry": 1,
       "runs": 12,
@@ -103,6 +108,49 @@ The Postgres-ready draft is in `schema.sql`.
   "selectedOpportunity": "aml",
   "evalsRun": false,
   "savedAt": "ISO timestamp"
+}
+```
+
+## auth and security
+
+`GET /api/auth/session` returns the active organization, user, role, workspace role, SSO/SCIM config, and resolved permissions. `POST /api/security/check` validates SSO, MFA, SCIM, RBAC, least privilege, and audit readiness. `POST /api/scim/sync` merges a local SCIM-style manifest into the user directory.
+
+```json
+{
+  "organization": { "id": "org-demo", "name": "Northstar Bank Transformation" },
+  "activeUserId": "user-fde",
+  "users": [],
+  "sso": { "provider": "Local demo SSO", "enforceMfa": true },
+  "scim": { "groups": [], "lastSyncAt": "ISO timestamp" }
+}
+```
+
+## collaboration
+
+`GET /api/collaboration`, `POST /api/collaboration/comments`, and `POST /api/collaboration/tasks` provide the MVP shared workspace layer.
+
+```json
+{
+  "comments": [
+    {
+      "id": "uuid",
+      "authorId": "user-compliance",
+      "body": "@Aida please review the policy gate.",
+      "surface": "Governance",
+      "status": "Open",
+      "createdAt": "ISO timestamp"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "uuid",
+      "title": "Confirm KYC sandbox access",
+      "ownerId": "user-client",
+      "due": "Day 3",
+      "status": "Open",
+      "priority": "High"
+    }
+  ]
 }
 ```
 
@@ -605,6 +653,8 @@ When we graduate from JSON to Postgres, this maps cleanly into:
 
 - `organizations`
 - `users`
+- `auth_sessions`
+- `scim_group_mappings`
 - `workspaces`
 - `projects`
 - `process_steps`
@@ -615,6 +665,8 @@ When we graduate from JSON to Postgres, this maps cleanly into:
 - `governance_policies`
 - `approval_gates`
 - `handoffs`
+- `workspace_comments`
+- `workspace_tasks`
 - `eval_cases`
 - `pilot_runs`
 - `run_trace_events`

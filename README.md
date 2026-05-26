@@ -45,6 +45,14 @@ The backend lives in `server.js` and exposes:
 - `GET /api/health`
 - `GET /api/database/status`
 - `POST /api/database/backup`
+- `GET /api/auth/session`
+- `POST /api/auth/switch-user`
+- `POST /api/security/check`
+- `POST /api/scim/sync`
+- `GET /api/collaboration`
+- `POST /api/collaboration/comments`
+- `POST /api/collaboration/tasks`
+- `GET /api/deployment/manifest`
 - `GET /api/workspace`
 - `PUT /api/workspace`
 - `GET /api/playbooks`
@@ -61,6 +69,7 @@ The backend lives in `server.js` and exposes:
 - `GET /api/telemetry`
 - `GET /api/documents`
 - `POST /api/documents`
+- `POST /api/documents/upload`
 - `POST /api/documents/search`
 - `POST /api/retrieval/query`
 - `POST /api/context/graph`
@@ -96,13 +105,15 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 
 - Edit the client brief and KPI metrics.
 - Generate a workspace from a raw process description through the backend intake engine, with schema validation, repair/retry, and browser fallback.
+- Switch between demo users, inspect RBAC permissions, run SSO/SCIM/RBAC security checks, and sync a local SCIM manifest.
 - Use four demo intake presets: banking AML, insurance claims, legal review, and SaaS support.
 - View, sync, and search a generated Context Graph with people, systems, agent tools, controls, lineage, and readiness blockers.
 - Manage connector readiness across source systems, data classes, access modes, refresh cadence, and blockers.
 - Run connector dry-run tests that check access, owner, data controls, refresh cadence, Knowledge Base evidence, and pilot gates before agents rely on sources.
 - View an ingestion plan that explains how PRAXIS connects, masks, indexes, and proves client data.
-- Upload or paste `.txt`, `.md`, and `.json` client documents into Knowledge Base.
+- Upload or paste `.txt`, `.md`, `.json`, `.pdf`, and `.docx` client documents into Knowledge Base.
 - Extract document summaries, chunks, keywords, systems, and risk signals for retrieval-ready context.
+- Extract text from text-based PDFs and DOCX files with a built-in no-dependency parser for MVP validation.
 - Query document chunks through backend retrieval and show citations inside the Pilot Run Console evidence packet.
 - Paste OpenAPI JSON specs into Tool Fabric and turn operations into agent-ready tools.
 - Generate an MCP server scaffold from the current Tool Fabric.
@@ -110,6 +121,7 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Score API/tool readiness and edit owner, auth model, risk, callable signatures, and descriptions.
 - Generate an MCP-style tool manifest preview.
 - Manage governance policies, approval gates, audit trail requirements, and governance readiness.
+- Add shared comments, mentions, tasks, owners, due dates, and decision notes in Collaboration.
 - Run a governance pre-flight check that flags blocked connectors, sensitive data, high-risk tools, pending approvals, and audit gaps.
 - Run runtime governance enforcement that returns allow/approval/block decisions, masks sensitive input, builds a tool secrets manifest, and records the enforcement audit event.
 - Run the backend Agent Runtime from Pilot Console and inspect a saved case trace, state machine, retry policy, evidence packet, decision boundary, approval route, latency, cost estimate, and audit payload.
@@ -121,6 +133,7 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Track eval run history as a regression baseline across repeated pilot tests.
 - Include retrieval coverage in backend eval runs when Knowledge Base documents exist.
 - Manage a deployment timeline, rollout checklist, blockers, owners, statuses, and exit criteria.
+- Generate a hosted deployment manifest and use `Dockerfile`, `.dockerignore`, and `DEPLOYMENT.md` as the first cloud-ready package.
 - Save the current workspace as a reusable playbook.
 - Search playbooks, publish versioned packages into a local marketplace registry, track usage, and clone packages back into the active workspace.
 - Save the workspace to browser local storage.

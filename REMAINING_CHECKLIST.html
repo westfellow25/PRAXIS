@@ -279,10 +279,10 @@
       </section>
 
       <section class="stats">
-        <article class="stat"><span>Готово</span><strong>22</strong></article>
+        <article class="stat"><span>Готово</span><strong>27</strong></article>
         <article class="stat"><span>Частично</span><strong>0</strong></article>
-        <article class="stat"><span>Не начато</span><strong>5</strong></article>
-        <article class="stat"><span>Следующий фокус</span><strong>P0</strong></article>
+        <article class="stat"><span>Не начато</span><strong>0</strong></article>
+        <article class="stat"><span>Следующий фокус</span><strong>Pilot</strong></article>
       </section>
 
       <section class="section">
@@ -308,9 +308,9 @@
             <span>Persistence</span><strong>Database layer</strong><span class="badge green">Готово</span>
             <p>Есть `data/praxis-db.json`, schema version, migration metadata, status endpoint, manual backups, schema doc и `schema.sql`.</p><p>Позже: hosted Postgres и managed backup storage.</p><span class="priority">P0</span>
           </div>
-          <div class="row red">
-            <span>Auth</span><strong>Accounts and workspace permissions</strong><span class="badge red">Не начато</span>
-            <p>Пока нет пользователей, организаций, ролей.</p><p>Добавить orgs, users, sessions, workspace roles.</p><span class="priority">P0</span>
+          <div class="row green">
+            <span>Auth</span><strong>Accounts and workspace permissions</strong><span class="badge green">Готово</span>
+            <p>Есть demo organization, users, active session, role switch и permission matrix.</p><p>Позже: real auth provider, session storage, passwordless/SSO flow.</p><span class="priority">P0</span>
           </div>
         </div>
       </section>
@@ -332,7 +332,7 @@
           </div>
           <div class="row green">
             <span>Knowledge</span><strong>Document ingestion</strong><span class="badge green">Готово</span>
-            <p>Upload/paste `.txt`, `.md`, `.json`; chunks, keywords, systems, risk signals.</p><p>Добавить PDF/DOCX extraction позже.</p><span class="priority">P1</span>
+            <p>Upload/paste `.txt`, `.md`, `.json`, `.pdf`, `.docx`; chunks, keywords, systems, risk signals.</p><p>Позже: OCR, tables extraction, scanned PDFs.</p><span class="priority">P1</span>
           </div>
           <div class="row green">
             <span>Retrieval</span><strong>Context retrieval tool</strong><span class="badge green">Готово</span>
@@ -384,25 +384,25 @@
           <div class="row header">
             <span>Слой</span><span>Задача</span><span>Статус</span><span>Что есть сейчас</span><span>Что осталось</span><span>Priority</span>
           </div>
-          <div class="row red">
-            <span>Security</span><strong>SSO / SCIM / RBAC</strong><span class="badge red">Не начато</span>
-            <p>Пока локальный single-user app.</p><p>Enterprise identity, group sync, RBAC/ABAC, audit export.</p><span class="priority">P1</span>
+          <div class="row green">
+            <span>Security</span><strong>SSO / SCIM / RBAC</strong><span class="badge green">Готово</span>
+            <p>`/api/auth/session`, `/api/security/check`, `/api/scim/sync`, role permissions и Security screen готовы.</p><p>Позже: Okta/Azure AD/Google SSO and ABAC policy engine.</p><span class="priority">P1</span>
           </div>
-          <div class="row red">
-            <span>Infra</span><strong>Hosted deployment</strong><span class="badge red">Не начато</span>
-            <p>Сейчас локальный server на `localhost:4173`.</p><p>Deploy на cloud, env config, backups, observability, logs.</p><span class="priority">P1</span>
+          <div class="row green">
+            <span>Infra</span><strong>Hosted deployment</strong><span class="badge green">Готово</span>
+            <p>Добавлены Dockerfile, `.dockerignore`, `DEPLOYMENT.md` и `/api/deployment/manifest`.</p><p>Позже: real cloud project, managed Postgres, logs, metrics.</p><span class="priority">P1</span>
           </div>
-          <div class="row red">
-            <span>Collab</span><strong>Multi-user workspace</strong><span class="badge red">Не начато</span>
-            <p>Нет comments, mentions, assignments.</p><p>Tasks, owners, notifications, decision log, client/FDE/executive views.</p><span class="priority">P2</span>
+          <div class="row green">
+            <span>Collab</span><strong>Multi-user workspace</strong><span class="badge green">Готово</span>
+            <p>Новый Collaboration screen + `/api/collaboration`: comments, mentions-style text, shared tasks, owners and due dates.</p><p>Позже: realtime presence, email/slack notifications.</p><span class="priority">P2</span>
           </div>
           <div class="row green">
             <span>Tasks</span><strong>Owners and SLA alerts</strong><span class="badge green">Готово</span>
             <p>Handoff queue хранит approver, status, due date, reviewer notes и audit events.</p><p>`/api/handoffs/alerts` даёт overdue/due soon/escalated reminders в UI.</p><span class="priority">P1</span>
           </div>
-          <div class="row red">
-            <span>Files</span><strong>PDF/DOCX ingestion</strong><span class="badge red">Не начато</span>
-            <p>Сейчас `.txt`, `.md`, `.json`.</p><p>PDF parser, DOCX parser, tables extraction, OCR later.</p><span class="priority">P1</span>
+          <div class="row green">
+            <span>Files</span><strong>PDF/DOCX ingestion</strong><span class="badge green">Готово</span>
+            <p>`POST /api/documents/upload` extracts text from text-based PDFs and DOCX files without external dependencies.</p><p>Позже: OCR, table extraction, scanned documents.</p><span class="priority">P1</span>
           </div>
           <div class="row green">
             <span>Metrics</span><strong>ROI telemetry</strong><span class="badge green">Готово</span>

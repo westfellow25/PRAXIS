@@ -16,6 +16,26 @@ create table users (
   email text not null unique,
   display_name text not null,
   role text not null default 'fde',
+  workspace_role text not null default 'Contributor',
+  status text not null default 'Active',
+  created_at timestamptz not null default now()
+);
+
+create table auth_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id) on delete cascade,
+  provider text not null default 'local',
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table scim_group_mappings (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references organizations(id) on delete cascade,
+  external_group text not null,
+  praxis_role text not null,
+  member_count integer not null default 0,
+  last_sync_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -262,6 +282,28 @@ create table handoffs (
   updated_at timestamptz not null default now()
 );
 
+create table workspace_comments (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references workspaces(id) on delete cascade,
+  author_id uuid references users(id) on delete set null,
+  body text not null,
+  surface text not null default 'Workspace',
+  status text not null default 'Open',
+  created_at timestamptz not null default now()
+);
+
+create table workspace_tasks (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references workspaces(id) on delete cascade,
+  owner_id uuid references users(id) on delete set null,
+  title text not null,
+  due text,
+  status text not null default 'Open',
+  priority text not null default 'Medium',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table playbooks (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid references organizations(id) on delete cascade,
@@ -302,6 +344,9 @@ create table audit_events (
 );
 
 create index workspaces_org_idx on workspaces(organization_id);
+create index users_org_idx on users(organization_id);
+create index auth_sessions_user_idx on auth_sessions(user_id);
+create index scim_group_mappings_org_idx on scim_group_mappings(organization_id);
 create index connectors_workspace_idx on connectors(workspace_id);
 create index documents_workspace_idx on documents(workspace_id);
 create index tools_workspace_idx on tools(workspace_id);
@@ -312,6 +357,8 @@ create index eval_runs_workspace_idx on eval_runs(workspace_id);
 create index pilot_runs_workspace_idx on pilot_runs(workspace_id);
 create index handoffs_workspace_idx on handoffs(workspace_id);
 create index handoffs_status_idx on handoffs(status);
+create index workspace_comments_workspace_idx on workspace_comments(workspace_id);
+create index workspace_tasks_workspace_idx on workspace_tasks(workspace_id);
 create index database_backups_org_idx on database_backups(organization_id);
 create index context_graph_snapshots_workspace_idx on context_graph_snapshots(workspace_id);
 create index playbook_registry_org_idx on playbook_registry(organization_id);

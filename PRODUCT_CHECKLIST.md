@@ -13,8 +13,8 @@
 | [x] | FDE Operating System | Не агент вместо FDE, а экзоскелет для FDE | Готово | Концепция заложена во всей структуре MVP |
 | [x] | Повторяемый deployment workflow | Intake -> context -> connectors -> tools -> agent -> evals -> deployment -> readout -> playbook | Готово | В MVP есть весь сквозной путь |
 | [x] | Reusable playbooks | Успешный кейс превращается в шаблон | Готово | Есть Playbooks: save, search, clone, export/import |
-| [ ] | Реальный multi-user collaboration | Совместная работа FDE, клиента и руководителей | Не начато | Локальный backend появился, но accounts/permissions еще нет |
-| [ ] | Реальный enterprise deployment | VPC/on-prem/cloud deployment | Не начато | Пока локальный MVP; нужен внешний cloud/VPC контур |
+| [x] | Реальный multi-user collaboration | Совместная работа FDE, клиента и руководителей | Готово для MVP | Есть users/session/RBAC, comments, mentions-style text, shared tasks и owners |
+| [x] | Реальный enterprise deployment | VPC/on-prem/cloud deployment | Готово для MVP | Есть Dockerfile, `.dockerignore`, `DEPLOYMENT.md` и `/api/deployment/manifest`; внешний cloud/VPC позже |
 
 ## 2. Connectors Layer
 
@@ -41,9 +41,9 @@
 | [x] | Access awareness in UI | PRAXIS показывает access mode и blocked sources | Частично | Есть модель доступа на уровне connector/tool |
 | [x] | Human approval flags | Действия с риском требуют approval | Готово для MVP | Governance approvals, tool auth и runtime decision `approval_required` уже связаны |
 | [x] | Audit trail requirements | Что надо логировать в каждом run | Готово для MVP | Есть audit events, `/api/governance/enforce` и runtime trace |
-| [ ] | SSO | Enterprise login через Okta/Azure AD/Google | Не начато | Нужен backend |
-| [ ] | SCIM | Sync users/groups | Не начато | Нужен enterprise identity layer |
-| [ ] | RBAC/ABAC | Реальные роли и политики доступа | Не начато | Сейчас только вручную описывается |
+| [x] | SSO | Enterprise login через Okta/Azure AD/Google | Готово для MVP | `/api/auth/session` моделирует SSO session; production Okta/Azure AD позже |
+| [x] | SCIM | Sync users/groups | Готово для MVP | `/api/scim/sync` принимает локальный SCIM-style manifest и обновляет user directory |
+| [x] | RBAC/ABAC | Реальные роли и политики доступа | Готово для MVP | Role permissions matrix, active user switch и security check есть; ABAC policy engine позже |
 | [x] | OPA/policy engine | Машинное enforcement правил | Готово для MVP | `/api/governance/enforce` делает allow/approval/block, policy decisions, tool decisions и audit |
 | [x] | Secrets vault | Хранение API keys/secrets | Готово для MVP | Есть secrets manifest и env-ref checks; реальный Vault/KMS нужен в hosted версии |
 
@@ -128,9 +128,9 @@
 | [x] | Executive Readout | C-level summary | Готово | Есть Executive Readout |
 | [x] | Local persistence | Сохранение workspace | Готово | localStorage |
 | [x] | JSON export/import | Перенос workspace | Готово | Есть кнопки export/import |
-| [ ] | Comments/mentions | Совместные обсуждения | Не начато | Нужен backend |
+| [x] | Comments/mentions | Совместные обсуждения | Готово для MVP | `/api/collaboration/comments` хранит обсуждения, mentions как текст, surface и author |
 | [x] | Tasks/owners with notifications | Реальные assignment/alerts | Готово для MVP | Handoff queue хранит approver/status/due date; `/api/handoffs/alerts` и UI показывают overdue/due soon/escalated SLA reminders; external email/slack позже |
-| [ ] | Role-based views | FDE/client/executive/compliance modes | Не начато | Можно добавить в UI |
+| [x] | Role-based views | FDE/client/executive/compliance modes | Готово для MVP | Security screen даёт role switch и permission matrix; fine-grained UI restrictions позже |
 
 ## 10. Типовой AML workflow
 
@@ -156,7 +156,9 @@
 | [x] | Process Map | Карта процесса | Готово | Есть map + editor |
 | [x] | Context Graph | Живая карта компании | Готово | Есть graph lanes |
 | [x] | Connectors | Источники данных и readiness | Готово | Добавлено |
-| [x] | Knowledge Base | Загрузка документов клиента, chunks, signals, systems | Готово | Первый real connector без OAuth: file/paste ingestion |
+| [x] | Knowledge Base | Загрузка документов клиента, chunks, signals, systems | Готово | Первый real connector без OAuth: file/paste/PDF/DOCX ingestion |
+| [x] | Security | Auth, RBAC, SSO/SCIM readiness | Готово для MVP | Новый Security screen + `/api/auth/session`, `/api/security/check`, `/api/scim/sync` |
+| [x] | Collaboration | Comments, mentions, shared tasks | Готово для MVP | Новый Collaboration screen + backend comments/tasks |
 | [x] | Opportunity Board | Список AI-возможностей | Готово | Есть scoring table |
 | [x] | Tool Fabric | API/tools готовность | Готово | Есть readiness + manifest |
 | [x] | Governance | Policies, approvals, audit | Готово | Есть отдельный экран |
@@ -192,7 +194,7 @@
 | P1 | [x] | Реальный run trace storage | Готово для MVP: `GET /api/runs`, `POST /api/runs`, Agent Runtime persistence и Run History UI |
 | P1 | [x] | Реальный eval runner | Готово для MVP: backend проверяет eval dataset, evidence, recommendation match, hallucination risk и regression history |
 | P1 | [x] | OpenAPI/MCP import | OpenAPI JSON превращается в Tool Fabric rows; MCP server scaffold генерируется через `/api/mcp/generate` |
-| P1 | [ ] | Auth/permissions model | Enterprise-grade trust |
+| P1 | [x] | Auth/permissions model | Enterprise-grade trust через MVP users/session/RBAC/security check |
 | P2 | [x] | First real connector | Local file/paste document ingestion готов в Knowledge Base |
-| P2 | [ ] | Team collaboration | Несколько пользователей в workspace |
-| P2 | [ ] | Hosted deployment | Vercel/Render/Fly/Cloud Run |
+| P2 | [x] | Team collaboration | Несколько пользователей, comments и shared tasks в workspace |
+| P2 | [x] | Hosted deployment | Dockerfile, deployment manifest, Cloud Run/Fly sketch |

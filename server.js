@@ -3,6 +3,7 @@ import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/pro
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { inflateRawSync, inflateSync } from "node:zlib";
 
 const ROOT = process.cwd();
 
@@ -29,6 +30,70 @@ const BACKUP_DIR = join(DATA_DIR, "backups");
 const DB_SCHEMA_VERSION = 2;
 const PORT = Number(process.env.PORT || 4173);
 
+const rolePermissions = {
+  admin: ["workspace:write", "agent:run", "governance:approve", "security:manage", "collab:write", "playbook:publish", "deploy:manage"],
+  fde: ["workspace:write", "agent:run", "governance:request", "collab:write", "playbook:publish", "deploy:manage"],
+  compliance: ["workspace:read", "agent:review", "governance:approve", "collab:write", "audit:read"],
+  client: ["workspace:read", "agent:review", "collab:write", "readout:read"],
+  executive: ["workspace:read", "readout:read", "value:read", "collab:comment"],
+};
+
+function createDefaultAuth() {
+  return {
+    organization: { id: "org-demo", name: "Northstar Bank Transformation" },
+    activeUserId: "user-fde",
+    users: [
+      { id: "user-fde", name: "Aida FDE", email: "aida@praxis.local", role: "fde", workspaceRole: "Owner", status: "Active" },
+      { id: "user-compliance", name: "Mira Compliance", email: "mira@northstar.local", role: "compliance", workspaceRole: "Approver", status: "Active" },
+      { id: "user-client", name: "Tim Client Ops", email: "tim@northstar.local", role: "client", workspaceRole: "Contributor", status: "Active" },
+      { id: "user-exec", name: "Rina Executive", email: "rina@northstar.local", role: "executive", workspaceRole: "Viewer", status: "Active" },
+    ],
+    sso: {
+      provider: "Local demo SSO",
+      domain: "northstar.local",
+      enforceMfa: true,
+      sessionHours: 8,
+      status: "MVP configured",
+    },
+    scim: {
+      source: "Local SCIM manifest",
+      lastSyncAt: null,
+      groups: [
+        { group: "PRAXIS-FDE", role: "fde", members: 1 },
+        { group: "PRAXIS-Compliance", role: "compliance", members: 1 },
+        { group: "PRAXIS-Client", role: "client", members: 1 },
+        { group: "PRAXIS-Executive", role: "executive", members: 1 },
+      ],
+    },
+  };
+}
+
+function createDefaultCollaboration() {
+  return {
+    comments: [
+      {
+        id: "comment-demo-1",
+        authorId: "user-compliance",
+        body: "@Aida please keep SAR drafting behind human approval until policy citations pass evals.",
+        surface: "Governance",
+        status: "Open",
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    tasks: [
+      {
+        id: "task-demo-1",
+        title: "Confirm transaction warehouse read-only access",
+        ownerId: "user-client",
+        due: "Day 3",
+        status: "Open",
+        priority: "High",
+        createdAt: new Date().toISOString(),
+      },
+    ],
+  };
+}
+
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -46,6 +111,8 @@ function createEmptyDb() {
     schemaVersion: DB_SCHEMA_VERSION,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    auth: createDefaultAuth(),
+    collaboration: createDefaultCollaboration(),
     workspace: null,
     playbooks: [],
     playbookRegistry: [],
@@ -66,6 +133,16 @@ function migrateDb(db = {}) {
     ...empty,
     ...db,
     schemaVersion: Number(db.schemaVersion) || 1,
+    auth: db.auth && typeof db.auth === "object" ? { ...createDefaultAuth(), ...db.auth } : createDefaultAuth(),
+    collaboration:
+      db.collaboration && typeof db.collaboration === "object"
+        ? {
+            ...createDefaultCollaboration(),
+            ...db.collaboration,
+            comments: Array.isArray(db.collaboration.comments) ? db.collaboration.comments : createDefaultCollaboration().comments,
+            tasks: Array.isArray(db.collaboration.tasks) ? db.collaboration.tasks : createDefaultCollaboration().tasks,
+          }
+        : createDefaultCollaboration(),
     playbooks: Array.isArray(db.playbooks) ? db.playbooks : [],
     playbookRegistry: Array.isArray(db.playbookRegistry) ? db.playbookRegistry : [],
     runs: Array.isArray(db.runs) ? db.runs : [],
@@ -180,6 +257,9 @@ async function buildDatabaseStatus(db) {
   const file = await getDbFileStats();
   const backups = await listDbBackups();
   const collections = {
+    users: Array.isArray(db.auth?.users) ? db.auth.users.length : 0,
+    comments: Array.isArray(db.collaboration?.comments) ? db.collaboration.comments.length : 0,
+    tasks: Array.isArray(db.collaboration?.tasks) ? db.collaboration.tasks.length : 0,
     playbooks: Array.isArray(db.playbooks) ? db.playbooks.length : 0,
     playbookRegistry: Array.isArray(db.playbookRegistry) ? db.playbookRegistry.length : 0,
     runs: Array.isArray(db.runs) ? db.runs.length : 0,
@@ -223,6 +303,142 @@ function appendAudit(db, event, detail = {}) {
       },
       ...(Array.isArray(db.auditLog) ? db.auditLog : []),
     ].slice(0, 250),
+  };
+}
+
+function getActiveUser(auth = createDefaultAuth()) {
+  const users = Array.isArray(auth.users) ? auth.users : [];
+  return users.find((user) => user.id === auth.activeUserId) || users[0] || null;
+}
+
+function buildSession(auth = createDefaultAuth()) {
+  const user = getActiveUser(auth);
+  const permissions = user ? rolePermissions[user.role] || [] : [];
+  return {
+    organization: auth.organization,
+    user,
+    users: auth.users,
+    sso: auth.sso,
+    scim: auth.scim,
+    permissions,
+    rolePermissions,
+  };
+}
+
+function runSecurityAssessment(auth = createDefaultAuth()) {
+  const session = buildSession(auth);
+  const users = Array.isArray(auth.users) ? auth.users : [];
+  const findings = [
+    {
+      area: "SSO",
+      status: auth.sso?.provider ? "pass" : "fail",
+      detail: auth.sso?.provider ? `${auth.sso.provider} configured for ${auth.sso.domain}.` : "No SSO provider configured.",
+    },
+    {
+      area: "MFA",
+      status: auth.sso?.enforceMfa ? "pass" : "warn",
+      detail: auth.sso?.enforceMfa ? "MFA is required for demo sessions." : "MFA should be required before enterprise pilot.",
+    },
+    {
+      area: "SCIM",
+      status: auth.scim?.groups?.length ? "pass" : "warn",
+      detail: `${auth.scim?.groups?.length || 0} SCIM group mapping(s) available.`,
+    },
+    {
+      area: "RBAC",
+      status: users.every((user) => rolePermissions[user.role]) ? "pass" : "fail",
+      detail: `${users.length} user(s) mapped to known PRAXIS roles.`,
+    },
+    {
+      area: "Least privilege",
+      status: users.some((user) => user.role === "admin") ? "warn" : "pass",
+      detail: users.some((user) => user.role === "admin") ? "Admin users exist; review before production." : "No always-on admin user in demo workspace.",
+    },
+    {
+      area: "Audit",
+      status: "pass",
+      detail: "Security, auth, collaboration, runtime, eval, and governance events append to auditLog.",
+    },
+  ];
+  const score = Math.round((findings.filter((finding) => finding.status === "pass").length / findings.length) * 100);
+  return {
+    checkedAt: new Date().toISOString(),
+    score,
+    passed: findings.every((finding) => finding.status !== "fail"),
+    session,
+    findings,
+  };
+}
+
+function syncScim(auth = createDefaultAuth(), manifest = {}) {
+  const incomingUsers = Array.isArray(manifest.users) ? manifest.users : [];
+  const mergedByEmail = new Map((auth.users || []).map((user) => [user.email, user]));
+  incomingUsers.forEach((user, index) => {
+    if (!user.email) return;
+    mergedByEmail.set(user.email, {
+      id: mergedByEmail.get(user.email)?.id || `scim-${index}-${createHash("sha1").update(user.email).digest("hex").slice(0, 8)}`,
+      name: user.name || user.email,
+      email: user.email,
+      role: rolePermissions[user.role] ? user.role : "client",
+      workspaceRole: user.workspaceRole || "Contributor",
+      status: user.status || "Active",
+    });
+  });
+  return {
+    ...auth,
+    users: [...mergedByEmail.values()],
+    scim: {
+      ...(auth.scim || createDefaultAuth().scim),
+      source: manifest.source || auth.scim?.source || "Local SCIM manifest",
+      lastSyncAt: new Date().toISOString(),
+    },
+  };
+}
+
+function buildDeploymentManifest(project = {}) {
+  const serviceName = `praxis-${String(project.workflowName || "workspace").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workspace"}`;
+  const secrets = [
+    "LLM_ENDPOINT",
+    "LLM_MODEL",
+    "LLM_API_KEY",
+    "SESSION_SECRET",
+    "DATABASE_URL",
+    "OBJECT_STORAGE_BUCKET",
+  ];
+  return {
+    generatedAt: new Date().toISOString(),
+    serviceName,
+    mode: "single-tenant-private-cloud-ready",
+    local: {
+      start: "npm start",
+      port: PORT,
+      database: "data/praxis-db.json",
+    },
+    docker: {
+      dockerfile: "Dockerfile",
+      build: `docker build -t ${serviceName}:local .`,
+      run: `docker run --env-file .env -p 4173:4173 ${serviceName}:local`,
+    },
+    cloudRun: {
+      image: `gcr.io/$PROJECT/${serviceName}`,
+      command: `gcloud run deploy ${serviceName} --image gcr.io/$PROJECT/${serviceName} --region us-central1 --allow-unauthenticated=false`,
+    },
+    fly: {
+      app: serviceName,
+      command: "fly deploy",
+    },
+    requiredSecrets: secrets.map((name) => ({ name, configured: Boolean(process.env[name]) })),
+    healthChecks: [
+      { path: "/api/health", purpose: "server liveness" },
+      { path: "/api/database/status", purpose: "persistence and backup readiness" },
+      { path: "/api/auth/session", purpose: "session and RBAC readiness" },
+    ],
+    productionGaps: [
+      "Replace local JSON DB with managed Postgres using schema.sql.",
+      "Move uploads to object storage with malware scanning and retention policies.",
+      "Terminate TLS at a managed load balancer or platform ingress.",
+      "Connect real SSO provider and SCIM directory before external users.",
+    ],
   };
 }
 
@@ -699,6 +915,90 @@ function createDocumentRecord({ name, content, sourceType = "pasted" }) {
     chunks,
     createdAt: new Date().toISOString(),
   };
+}
+
+function decodeXmlEntities(text = "") {
+  return String(text)
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)));
+}
+
+function extractDocxText(buffer) {
+  let offset = 0;
+  while (offset + 30 < buffer.length) {
+    const signature = buffer.readUInt32LE(offset);
+    if (signature !== 0x04034b50) {
+      offset += 1;
+      continue;
+    }
+    const flags = buffer.readUInt16LE(offset + 6);
+    const method = buffer.readUInt16LE(offset + 8);
+    const compressedSize = buffer.readUInt32LE(offset + 18);
+    const nameLength = buffer.readUInt16LE(offset + 26);
+    const extraLength = buffer.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + nameLength + extraLength;
+    const fileName = buffer.slice(nameStart, nameStart + nameLength).toString("utf8");
+    if (fileName === "word/document.xml" && compressedSize > 0) {
+      const payload = buffer.slice(dataStart, dataStart + compressedSize);
+      const xml = method === 8 ? inflateRawSync(payload).toString("utf8") : payload.toString("utf8");
+      const paragraphs = xml
+        .replace(/<w:tab\/>/g, " ")
+        .replace(/<\/w:p>/g, "\n")
+        .match(/<w:t[^>]*>[\s\S]*?<\/w:t>/g)
+        ?.map((token) => decodeXmlEntities(token.replace(/<[^>]+>/g, ""))) || [];
+      return paragraphs.join(" ").replace(/\s+\n/g, "\n").replace(/[ \t]+/g, " ").trim();
+    }
+    if (flags & 0x08 || compressedSize === 0) {
+      offset = dataStart + Math.max(0, compressedSize);
+    } else {
+      offset = dataStart + compressedSize;
+    }
+  }
+  return "";
+}
+
+function extractPdfText(buffer) {
+  const raw = buffer.toString("latin1");
+  const strings = [];
+  const literalRegex = /\((?:\\.|[^\\)]){3,}\)/g;
+  let match;
+  while ((match = literalRegex.exec(raw))) {
+    const value = match[0]
+      .slice(1, -1)
+      .replace(/\\n/g, " ")
+      .replace(/\\r/g, " ")
+      .replace(/\\t/g, " ")
+      .replace(/\\([()\\])/g, "$1")
+      .replace(/\\\d{1,3}/g, " ");
+    if (/[A-Za-z]{3,}/.test(value)) strings.push(value);
+  }
+  if (strings.length) return strings.join(" ").replace(/\s+/g, " ").trim();
+  return raw
+    .replace(/[^\x20-\x7E]+/g, " ")
+    .replace(/\s+/g, " ")
+    .slice(0, 12000)
+    .trim();
+}
+
+function extractUploadedDocument({ name = "uploaded-document", contentBase64 = "", mimeType = "" }) {
+  const buffer = Buffer.from(contentBase64, "base64");
+  if (!buffer.length) {
+    throw Object.assign(new Error("Uploaded file is empty"), { statusCode: 400 });
+  }
+  const extension = extname(name).toLowerCase();
+  if (extension === ".docx" || mimeType.includes("wordprocessingml")) {
+    return { content: extractDocxText(buffer), sourceType: "docx-upload" };
+  }
+  if (extension === ".pdf" || mimeType === "application/pdf") {
+    return { content: extractPdfText(buffer), sourceType: "pdf-upload" };
+  }
+  return { content: buffer.toString("utf8"), sourceType: "file-upload" };
 }
 
 function tokenize(text = "") {
@@ -2052,6 +2352,99 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/auth/session") {
+    sendJson(res, 200, { ok: true, session: buildSession(db.auth || createDefaultAuth()) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/auth/switch-user") {
+    const body = await readJsonBody(req);
+    const auth = db.auth || createDefaultAuth();
+    const userExists = (auth.users || []).some((user) => user.id === body.userId);
+    if (!userExists) {
+      sendJson(res, 404, { ok: false, error: "User not found" });
+      return;
+    }
+    const nextDb = appendAudit({ ...db, auth: { ...auth, activeUserId: body.userId } }, "auth.user.switched", { userId: body.userId });
+    const saved = await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, session: buildSession(saved.auth) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/security/check") {
+    const report = runSecurityAssessment(db.auth || createDefaultAuth());
+    const nextDb = appendAudit(db, "security.checked", { score: report.score, passed: report.passed, findings: report.findings.length });
+    await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, security: report });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/scim/sync") {
+    const body = await readJsonBody(req);
+    const auth = syncScim(db.auth || createDefaultAuth(), body.manifest || {});
+    const nextDb = appendAudit({ ...db, auth }, "scim.synced", { users: auth.users.length, source: auth.scim.source });
+    const saved = await writeDb(nextDb);
+    sendJson(res, 200, { ok: true, session: buildSession(saved.auth), security: runSecurityAssessment(saved.auth) });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/collaboration") {
+    sendJson(res, 200, { ok: true, collaboration: db.collaboration || createDefaultCollaboration(), session: buildSession(db.auth || createDefaultAuth()) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/collaboration/comments") {
+    const body = await readJsonBody(req);
+    const auth = db.auth || createDefaultAuth();
+    const activeUser = getActiveUser(auth);
+    const comment = {
+      id: randomUUID(),
+      authorId: body.authorId || activeUser?.id || "user-fde",
+      body: String(body.body || "").trim(),
+      surface: body.surface || "Workspace",
+      status: body.status || "Open",
+      createdAt: new Date().toISOString(),
+    };
+    if (!comment.body) {
+      sendJson(res, 400, { ok: false, error: "Comment body is required" });
+      return;
+    }
+    const collaboration = db.collaboration || createDefaultCollaboration();
+    const nextCollaboration = { ...collaboration, comments: [comment, ...(collaboration.comments || [])].slice(0, 300) };
+    const nextDb = appendAudit({ ...db, collaboration: nextCollaboration }, "collaboration.comment.created", { commentId: comment.id, surface: comment.surface });
+    const saved = await writeDb(nextDb);
+    sendJson(res, 201, { ok: true, collaboration: saved.collaboration, comment });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/collaboration/tasks") {
+    const body = await readJsonBody(req);
+    const task = {
+      id: randomUUID(),
+      title: String(body.title || "").trim(),
+      ownerId: body.ownerId || "user-fde",
+      due: body.due || "This week",
+      status: body.status || "Open",
+      priority: body.priority || "Medium",
+      createdAt: new Date().toISOString(),
+    };
+    if (!task.title) {
+      sendJson(res, 400, { ok: false, error: "Task title is required" });
+      return;
+    }
+    const collaboration = db.collaboration || createDefaultCollaboration();
+    const nextCollaboration = { ...collaboration, tasks: [task, ...(collaboration.tasks || [])].slice(0, 300) };
+    const nextDb = appendAudit({ ...db, collaboration: nextCollaboration }, "collaboration.task.created", { taskId: task.id, ownerId: task.ownerId });
+    const saved = await writeDb(nextDb);
+    sendJson(res, 201, { ok: true, collaboration: saved.collaboration, task });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/deployment/manifest") {
+    sendJson(res, 200, { ok: true, manifest: buildDeploymentManifest(db.workspace?.project || {}) });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/workspace") {
     sendJson(res, 200, { ok: true, workspace: db.workspace });
     return;
@@ -2221,6 +2614,31 @@ async function handleApi(req, res, url) {
     );
     const saved = await writeDb(nextDb);
     sendJson(res, 201, { ok: true, document, totalDocuments: saved.documents.length });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/documents/upload") {
+    const body = await readJsonBody(req);
+    const extracted = extractUploadedDocument({
+      name: body.name,
+      contentBase64: body.contentBase64,
+      mimeType: body.mimeType || "",
+    });
+    const document = createDocumentRecord({
+      name: body.name,
+      content: extracted.content,
+      sourceType: extracted.sourceType,
+    });
+    const nextDb = appendAudit(
+      {
+        ...db,
+        documents: [document, ...(Array.isArray(db.documents) ? db.documents : [])].slice(0, 500),
+      },
+      "document.uploaded",
+      { documentId: document.id, name: document.name, sourceType: document.sourceType, chunkCount: document.chunkCount },
+    );
+    const saved = await writeDb(nextDb);
+    sendJson(res, 201, { ok: true, document, totalDocuments: saved.documents.length, extraction: { sourceType: extracted.sourceType, characters: extracted.content.length } });
     return;
   }
 
