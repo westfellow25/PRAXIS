@@ -1,11 +1,20 @@
 const STORAGE_KEY = "praxis-mvp-workspace-v1";
 const PLAYBOOK_STORAGE_KEY = "praxis-mvp-playbooks-v1";
 const DOCUMENT_STORAGE_KEY = "praxis-mvp-documents-v1";
+const LANG_STORAGE_KEY = "praxis-mvp-language-v1";
 const API_BASE = "/api";
 let workspaceSyncTimer = null;
 let playbookSyncTimer = null;
+const requestedLanguage = new URLSearchParams(window.location.search).get("lang");
+const initialLanguage = ["en", "ru"].includes(requestedLanguage)
+  ? requestedLanguage
+  : localStorage.getItem(LANG_STORAGE_KEY) || "en";
+if (["en", "ru"].includes(requestedLanguage)) {
+  localStorage.setItem(LANG_STORAGE_KEY, requestedLanguage);
+}
 
 const state = {
+  language: initialLanguage,
   activeView: "intake",
   selectedOpportunity: "aml",
   evalsRun: false,
@@ -36,6 +45,654 @@ const state = {
   agentRuntimeRun: null,
   backendOnline: false,
 };
+
+const textNodeOriginals = new WeakMap();
+const attributeOriginals = new WeakMap();
+
+const ruDictionary = new Map(
+  Object.entries({
+    "AI Intake": "AI-ввод",
+    "Workspace": "Рабочее пространство",
+    "Context Graph": "Граф контекста",
+    "Connectors": "Коннекторы",
+    "Knowledge Base": "База знаний",
+    "Tool Fabric": "Слой инструментов",
+    "Governance": "Управление",
+    "Security": "Безопасность",
+    "Collaboration": "Совместная работа",
+    "Process Map": "Карта процесса",
+    "Opportunities": "Возможности",
+    "Value Model": "Модель ценности",
+    "Agent Builder": "Конструктор агента",
+    "Pilot Console": "Пилотная консоль",
+    "Eval Center": "Центр evals",
+    "Deployment": "Деплой",
+    "Executive Readout": "Executive-отчёт",
+    "Playbooks": "Плейбуки",
+    "Design partner workspace": "Workspace дизайн-партнёра",
+    "Demo Case": "Демо-кейс",
+    "AML Alert Briefing": "AML-брифинг алерта",
+    "Banking workflow: turn a 45 minute analyst investigation into a 9 minute agent-assisted review.":
+      "Банковский workflow: превратить 45-минутную проверку аналитика в 9-минутный обзор с агентом.",
+    "Save workspace": "Сохранить workspace",
+    "Export JSON": "Экспорт JSON",
+    "Import JSON": "Импорт JSON",
+    "Reset demo": "Сбросить демо",
+    "Run evals": "Запустить evals",
+    "Target KPI": "Целевой KPI",
+    "Readiness": "Готовность",
+    "Expected ROI": "Ожидаемый ROI",
+    "Human review": "Ручная проверка",
+    "Local draft": "Локальный черновик",
+    "Backend synced": "Backend синхронизирован",
+    "Backend saved": "Backend сохранён",
+    "Saved": "Сохранено",
+    "Save failed": "Сохранение не удалось",
+    "Demo reset": "Демо сброшено",
+    "DB checking": "Проверяем БД",
+    "DB offline": "БД офлайн",
+    "Backing up": "Делаем backup",
+    "Backup DB": "Backup БД",
+    "Backup failed": "Backup не удался",
+    "Not run": "Не запускалось",
+    "Waiting for test run": "Ожидает тестовый запуск",
+    'Press "Run evals" to simulate the FDE testing the agent against historic AML cases.':
+      'Нажми "Запустить evals", чтобы симулировать, как FDE проверяет агента на прошлых AML-кейсах.',
+    "Ready for pilot": "Готово к пилоту",
+    "Pilot gate passed": "Пилотный gate пройден",
+    "Pilot gate blocked": "Пилотный gate заблокирован",
+    "Scale-ready": "Готово к масштабированию",
+    "Pilot guarded": "Пилот с ограничениями",
+    "Positive ROI": "Положительный ROI",
+    "Needs tuning": "Нужна настройка",
+    "Blocked": "Заблокировано",
+    "Running": "Запускается",
+    "Runnable": "Можно запускать",
+    "Guarded": "Под контролем",
+    "Active": "Активно",
+    "Inactive": "Неактивно",
+    "Draft": "Черновик",
+    "Published": "Опубликовано",
+    "Use playbook": "Использовать плейбук",
+    "Use package": "Использовать пакет",
+    "Save current as playbook": "Сохранить текущий как плейбук",
+    "Publish current": "Опубликовать текущий",
+    "Delete": "Удалить",
+    "Add connector": "Добавить коннектор",
+    "Test connectors": "Проверить коннекторы",
+    "Add tool": "Добавить tool",
+    "Import tools": "Импортировать tools",
+    "Generate server": "Сгенерировать сервер",
+    "Run sandbox": "Запустить sandbox",
+    "Add policy": "Добавить policy",
+    "Add approval": "Добавить approval",
+    "Run check": "Запустить проверку",
+    "Run enforcement": "Запустить enforcement",
+    "Run security check": "Запустить security check",
+    "Sync SCIM": "Синхронизировать SCIM",
+    "Add comment": "Добавить комментарий",
+    "Add task": "Добавить задачу",
+    "Refresh manifest": "Обновить manifest",
+    "Run agent": "Запустить агента",
+    "Save run": "Сохранить запуск",
+    "Refresh queue": "Обновить очередь",
+    "Add case": "Добавить кейс",
+    "Add milestone": "Добавить milestone",
+    "Add blocker": "Добавить blocker",
+    "Add checklist": "Добавить checklist",
+    "Generate readout": "Сгенерировать readout",
+    "Update value model": "Обновить модель ценности",
+    "Apply to workspace KPI": "Применить к KPI workspace",
+    "Re-score": "Пересчитать score",
+    "Ingest document": "Загрузить документ",
+    "Clear": "Очистить",
+    "Search": "Поиск",
+    "Search people, tools, systems, policies...": "Ищи людей, tools, системы, policies...",
+    "Search documents, systems, keywords...": "Ищи документы, системы, ключевые слова...",
+    "Example: AML policy notes": "Пример: заметки по AML policy",
+    "Paste policy docs, call notes, tickets, or transcripts here...":
+      "Вставь сюда policy docs, заметки со звонков, тикеты или транскрипты...",
+    "@Mira please review the KYC masking rule before pilot.":
+      "@Mira, пожалуйста, проверь KYC masking rule до пилота.",
+    "Confirm sandbox KYC access": "Подтвердить sandbox-доступ к KYC",
+    "Search by workflow, vertical, or package...": "Ищи по workflow, вертикали или пакету...",
+    "Search by workflow, industry, client, module...": "Ищи по workflow, индустрии, клиенту или модулю...",
+    "Paste policy docs, API notes, meeting notes, RFP fragments, or process descriptions...":
+      "Вставь policy docs, API notes, meeting notes, RFP-фрагменты или описания процессов...",
+    "@Mira please review the policy gate before pilot.":
+      "@Mira, пожалуйста, проверь policy gate до пилота.",
+    "Bank AML": "Банк AML",
+    "Insurance claims": "Страховые claims",
+    "Legal review": "Legal review",
+    "SaaS support": "SaaS support",
+    "Generate workspace": "Сгенерировать workspace",
+    "Apply changes": "Применить изменения",
+    "Sync graph": "Синхронизировать граф",
+    "Search graph": "Искать в графе",
+    "Refresh trace": "Обновить trace",
+    "Upload files": "Загрузить файлы",
+    "Generated preview": "Сгенерированный preview",
+    "No intake generated yet": "Intake ещё не сгенерирован",
+    "Waiting": "Ожидает",
+    "Choose a preset or paste your own process description. PRAXIS will infer the best first pilot.":
+      "Выбери preset или вставь своё описание процесса. PRAXIS предложит лучший первый пилот.",
+    "In the real product this will call an LLM. In this local MVP it uses a deterministic intake engine so we can build the product loop first: text to map, map to agent, agent to evals.":
+      "В настоящем продукте это будет вызывать LLM. В локальном MVP используется детерминированный intake engine, чтобы сначала построить продуктовый цикл: текст → карта → агент → evals.",
+    "The FDE does not start from a blank chat window. PRAXIS gives them the map: process context, systems, tools, risks, evals, owners, adoption status, and ROI.":
+      "FDE не начинает с пустого чат-окна. PRAXIS даёт карту: контекст процесса, системы, tools, риски, evals, владельцев, adoption status и ROI.",
+    "AML analysts spend most of their time collecting evidence across five systems before they can make a decision.":
+      "AML-аналитики тратят большую часть времени на сбор evidence из пяти систем, прежде чем принять решение.",
+    "AML Alert Briefing Agent: collect evidence, check policy, draft recommendation, route to human review.":
+      "AML Alert Briefing Agent: собрать evidence, проверить policy, подготовить recommendation и передать на human review.",
+    "Reduce investigation prep time from 45 minutes to under 10 minutes without critical compliance errors.":
+      "Сократить подготовку расследования с 45 минут до менее 10 минут без критических compliance-ошибок.",
+    "The analyst is not spending 45 minutes thinking. Most of the time goes into opening systems, copying facts, checking policies, and building a case summary.":
+      "Аналитик не думает 45 минут. Большая часть времени уходит на открытие систем, копирование фактов, проверку policies и сборку summary кейса.",
+    "The agent gathers evidence and drafts a recommendation. A human analyst still approves suspicious cases and owns the regulated decision.":
+      "Агент собирает evidence и черновик recommendation. Человек-аналитик всё равно approve'ит suspicious cases и отвечает за regulated decision.",
+    "New high-risk case entered the workflow. The analyst needs KYC, policy, transaction, and approval context before making a recommendation.":
+      "Новый high-risk кейс вошёл в workflow. Аналитику нужны KYC, policy, transaction и approval context до рекомендации.",
+    "High match": "Высокое совпадение",
+    "Likely bottleneck": "Вероятный bottleneck",
+    "Generated assets": "Сгенерированные assets",
+    "Discovery complete": "Discovery завершён",
+    "Graph memory": "Память графа",
+    "Click Sync graph to persist the current Context Graph into backend memory.":
+      "Нажми Sync graph, чтобы сохранить текущий граф контекста в backend memory.",
+    "Backend lineage appears after graph sync.": "Backend lineage появится после синхронизации графа.",
+    "Primary bottleneck": "Главный bottleneck",
+    "Run a dry-run readiness test to see which sources are safe for a pilot, which need approval, and which need more evidence.":
+      "Запусти dry-run readiness test, чтобы увидеть, какие источники безопасны для пилота, где нужен approval и где нужно больше evidence.",
+    "Every run records user, input, tools, evidence, model output, reviewer, timestamp, and final action.":
+      "Каждый запуск записывает user, input, tools, evidence, model output, reviewer, timestamp и final action.",
+    "Sensitive context stays inside approved model and infrastructure boundaries.":
+      "Чувствительный контекст остаётся внутри approved model и infrastructure boundaries.",
+    "Click Run check to test connectors, sensitive data, high-risk tools, approvals, and audit coverage before the pilot.":
+      "Нажми Run check, чтобы проверить коннекторы, sensitive data, high-risk tools, approvals и audit coverage до пилота.",
+    "Client intake says: A regional bank has AML analysts spending 45 minutes per alert across ServiceNow, KYC database, transaction warehouse, sanctions API and policy docs. Leadership wants under 8 minutes with human approval and audit trail.":
+      "Интейк клиента: региональный банк тратит 45 минут на каждый AML alert в ServiceNow, KYC database, transaction warehouse, sanctions API и policy docs. Руководство хочет меньше 8 минут с ручным approval и audit trail.",
+    "AML Alert Briefing Agent: collect context, call approved tools, draft a recommendation, route risky cases to human review, and write an audit trail.":
+      "AML Alert Briefing Agent: собрать context, вызвать approved tools, подготовить recommendation, отправить рискованные кейсы на human review и записать audit trail.",
+    "Raw process description": "Сырое описание процесса",
+    "What to paste": "Что вставить",
+    "What PRAXIS extracts": "Что PRAXIS извлекает",
+    "Why this matters": "Почему это важно",
+    "What PRAXIS does": "Что делает PRAXIS",
+    "Messy work": "Хаотичная работа",
+    "Agent workflow": "Workflow агента",
+    "Measured ROI": "Измеренный ROI",
+    "Client brief": "Brief клиента",
+    "Pilot ready": "Пилот готов",
+    "Business problem": "Бизнес-проблема",
+    "First agent": "Первый агент",
+    "Success metric": "Метрика успеха",
+    "Workspace editor": "Редактор workspace",
+    "DB unknown": "БД неизвестна",
+    "Client": "Клиент",
+    "Workflow": "Workflow",
+    "Before time": "Время до",
+    "Target time": "Целевое время",
+    "Readiness %": "Готовность %",
+    "Pilot status": "Статус пилота",
+    "Platform layers": "Слои платформы",
+    "Graph ready": "Граф готов",
+    "Graph summary": "Сводка графа",
+    "Readiness checklist": "Checklist готовности",
+    "Connectors & data sources": "Коннекторы и источники данных",
+    "Checking connectors": "Проверяем коннекторы",
+    "Ingestion plan": "План ingestion",
+    "Risk map": "Карта рисков",
+    "Connector test harness": "Тестовый harness коннекторов",
+    "Connector editor": "Редактор коннекторов",
+    "Knowledge ingestion": "Загрузка знаний",
+    "No documents": "Нет документов",
+    "Document name": "Название документа",
+    "Paste document text": "Вставить текст документа",
+    "Knowledge signals": "Сигналы знаний",
+    "Context search": "Поиск по контексту",
+    "Tool catalog": "Каталог tools",
+    "Tool sandbox": "Tool sandbox",
+    "API factory": "API factory",
+    "MCP server": "MCP server",
+    "Starter server": "Starter server",
+    "OpenAPI importer": "OpenAPI importer",
+    "OpenAPI import": "OpenAPI import",
+    "Governance console": "Governance console",
+    "Enforcement": "Enforcement",
+    "Approval chain": "Approval chain",
+    "Audit trail": "Audit trail",
+    "Governance editor": "Редактор governance",
+    "Auth & RBAC": "Auth & RBAC",
+    "Checking": "Проверяем",
+    "Users and session": "Пользователи и сессия",
+    "Comments and mentions": "Комментарии и упоминания",
+    "Shared tasks": "Общие задачи",
+    "This week": "На этой неделе",
+    "Opportunity scoring": "Scoring возможностей",
+    "Assumptions": "Допущения",
+    "Cases per month": "Кейсов в месяц",
+    "Before minutes / case": "Минут до / кейс",
+    "After minutes / case": "Минут после / кейс",
+    "Loaded cost / hour ($)": "Полная стоимость / час ($)",
+    "Adoption %": "Adoption %",
+    "Error reduction %": "Снижение ошибок %",
+    "Cost per error ($)": "Стоимость ошибки ($)",
+    "Annual platform cost ($)": "Годовая стоимость платформы ($)",
+    "Executive value narrative": "Executive value narrative",
+    "Scenario view": "Сценарии",
+    "Pilot run console": "Консоль pilot run",
+    "Case input": "Вход кейса",
+    "Evidence packet": "Evidence packet",
+    "Decision and audit": "Decision и аудит",
+    "Run history": "История запусков",
+    "Human handoff queue": "Очередь human handoff",
+    "Eval suite": "Eval suite",
+    "Run summary": "Сводка запуска",
+    "Eval case editor": "Редактор eval-кейсов",
+    "Regression history": "История regression",
+    "Deployment plan": "План деплоя",
+    "Rollout checklist": "Rollout checklist",
+    "Blockers": "Blockers",
+    "Deployment editor": "Редактор деплоя",
+    "Hosted deployment manifest": "Hosted deployment manifest",
+    "Playbook library": "Библиотека плейбуков",
+    "Search playbooks": "Искать плейбуки",
+    "Local marketplace registry": "Локальный marketplace registry",
+    "Paste a messy client process. PRAXIS turns it into a deployment workspace.":
+      "Вставь хаотичный клиентский процесс. PRAXIS превратит его в deployment workspace.",
+    "Describe what happens at the client today": "Опиши, что сегодня происходит у клиента",
+    "Meeting notes, client discovery call summary, workflow description, RFP fragment, or a messy Slack recap.":
+      "Meeting notes, summary discovery-call, описание workflow, RFP-фрагмент или хаотичный Slack recap.",
+    "Client, workflow, bottleneck, process steps, first agent, tools, eval gates, expected KPI and ROI.":
+      "Клиент, workflow, bottleneck, process steps, первый агент, tools, eval gates, ожидаемый KPI и ROI.",
+    "This is the FDE leverage point: discovery becomes structured deployment data instead of loose notes.":
+      "Это точка рычага для FDE: discovery превращается в структурированные deployment-данные, а не остаётся заметками.",
+    "Turns a messy enterprise process into a safe AI deployment path.":
+      "Превращает хаотичный enterprise-процесс в безопасный путь AI-деплоя.",
+    "Edit the design partner brief": "Редактировать brief дизайн-партнёра",
+    "Six modules that activate during the deployment": "Шесть модулей, которые включаются во время деплоя",
+    "What PRAXIS knows about this deployment": "Что PRAXIS знает об этом деплое",
+    "Backend snapshot, search, and lineage": "Backend snapshot, поиск и lineage",
+    "From messy notes to agent-ready context": "От хаотичных заметок к agent-ready контексту",
+    "What blocks production deployment?": "Что блокирует production-деплой?",
+    "Which enterprise systems can the agent actually read or write?":
+      "Какие enterprise-системы агент реально может читать или изменять?",
+    "How PRAXIS prepares client data for agents": "Как PRAXIS готовит клиентские данные для агентов",
+    "Data classes, permissions, and blockers": "Классы данных, permissions и blockers",
+    "Dry-run every source before the agent relies on it":
+      "Проверь каждый источник в dry-run до того, как агент начнёт на него полагаться",
+    "Edit access, data class, and readiness": "Редактировать доступ, класс данных и readiness",
+    "Upload or paste client documents into PRAXIS context":
+      "Загрузи или вставь документы клиента в контекст PRAXIS",
+    "What PRAXIS extracted from documents": "Что PRAXIS извлёк из документов",
+    "Search ingested context sources": "Поиск по загруженным источникам контекста",
+    "API readiness matrix for agent actions": "Матрица API readiness для действий агента",
+    "Dry-run tool contracts before agents can use them": "Dry-run tool contracts до доступа агентов",
+    "Make APIs agent-ready": "Сделать API agent-ready",
+    "MCP-style tool contract": "MCP-style контракт tool",
+    "Generated starter server from the current Tool Fabric":
+      "Сгенерированный starter server из текущего Tool Fabric",
+    "Paste an OpenAPI JSON spec and generate agent-ready tools":
+      "Вставь OpenAPI JSON spec и сгенерируй agent-ready tools",
+    "Create an agent-safe tool contract": "Создай agent-safe контракт tool",
+    "Generate a minimal MCP server from the approved tools":
+      "Сгенерируй минимальный MCP-сервер из одобренных tools",
+    "Run one tool call in sandbox mode before giving it to an agent":
+      "Запусти один tool call в sandbox-режиме до передачи агенту",
+    "Policies, approvals, and traceability before go-live":
+      "Policies, approvals и traceability до go-live",
+    "Policy decision before an agent touches tools or output":
+      "Policy decision до того, как агент тронет tools или output",
+    "Policies and approvals that stop the agent from doing unsafe work":
+      "Policies и approvals, которые не дают агенту делать небезопасные действия",
+    "Live enforcement preview for the selected workflow":
+      "Live-preview enforcement для выбранного workflow",
+    "Who signs off before pilot and scale-up?": "Кто подписывает pilot и scale-up?",
+    "What PRAXIS records for every agent run": "Что PRAXIS записывает для каждого запуска агента",
+    "Edit policies and approvals": "Редактировать policies и approvals",
+    "Who is inside this deployment workspace, and what can they do?":
+      "Кто находится в этом deployment workspace и что они могут делать?",
+    "Switch roles and inspect permissions": "Переключай роли и проверяй permissions",
+    "SSO, SCIM, RBAC, MFA and audit readiness": "SSO, SCIM, RBAC, MFA и audit readiness",
+    "Enterprise roles mapped to PRAXIS actions": "Enterprise-роли, сопоставленные с действиями PRAXIS",
+    "Who can see what, what is masked, and what is auditable":
+      "Кто что видит, что маскируется и что можно проверить аудитом",
+    "Shared notes, approvals, and owner follow-ups":
+      "Общие заметки, approvals и follow-up по владельцам",
+    "Shared workspace discussion across FDE, client, compliance and execs":
+      "Общее обсуждение workspace между FDE, клиентом, compliance и руководством",
+    "Owners, due dates, blockers and SLA accountability":
+      "Владельцы, сроки, blockers и SLA accountability",
+    "How AML investigation works today": "Как AML-расследование работает сегодня",
+    "Add step": "Добавить шаг",
+    "Edit the workflow steps": "Редактировать шаги workflow",
+    "Evidence collection is the slow part.": "Сбор evidence — самая медленная часть.",
+    "Automate the preparation, not the final judgment.": "Автоматизируй подготовку, а не финальное решение.",
+    "Where should the FDE deploy first?": "Где FDE должен деплоить первым?",
+    "Translate the pilot into dollars, hours, and payback.":
+      "Переведи пилот в деньги, часы и payback.",
+    "Edit the business case inputs": "Редактировать inputs бизнес-кейса",
+    "Conservative, base, and upside cases": "Conservative, base и upside сценарии",
+    "Agent-ready tools": "Agent-ready tools",
+    "Watch one client case move through the whole PRAXIS stack":
+      "Посмотри, как один клиентский кейс проходит через весь стек PRAXIS",
+    "Trace the current workflow against retrieved client context":
+      "Проверь текущий workflow по найденному клиентскому контексту",
+    "What the agent collected before answering": "Что агент собрал перед ответом",
+    "What happens before anything touches production": "Что происходит до касания production",
+    "Saved traces from agent runtime and manual pilot runs":
+      "Сохранённые traces из agent runtime и ручных pilot runs",
+    "Review decisions created by Agent Runtime": "Review decisions, созданные Agent Runtime",
+    "Human review queue for cases the agent should not finalize":
+      "Очередь ручной проверки для кейсов, которые агент не должен закрывать сам",
+    "Regression gate before production": "Regression gate перед production",
+    "Define what “good enough for pilot” means": "Определи, что значит “достаточно хорошо для пилота”",
+    "Track quality across every eval run": "Отслеживай качество по каждому eval run",
+    "30-day pilot rollout from sandbox to production": "30-дневный rollout пилота от sandbox до production",
+    "What must be true before scale-up?": "Что должно быть правдой до scale-up?",
+    "Open risks and owner accountability": "Открытые риски и accountability владельцев",
+    "Edit rollout plan, blockers, and checklist": "Редактировать rollout plan, blockers и checklist",
+    "How this local MVP moves toward Docker, private cloud, or Cloud Run":
+      "Как этот локальный MVP движется к Docker, private cloud или Cloud Run",
+    "Board-ready summary generated from the deployment workspace":
+      "Board-ready summary, сгенерированный из deployment workspace",
+    "Every successful deployment becomes reusable IP.": "Каждый успешный деплой становится reusable IP.",
+    "Versioned deployment packages ready to reuse.": "Версионированные deployment packages, готовые к повторному использованию.",
+    "Tests the agent against real historic cases before it touches production work.":
+      "Проверяет агента на реальных прошлых кейсах до доступа к production-работе.",
+    "Controls permissions, approvals, audit logs, data masking, and compliance rules.":
+      "Контролирует permissions, approvals, audit logs, masking данных и compliance rules.",
+    "Gives FDEs and clients one shared room for process maps, blockers, metrics, readouts, and playbooks.":
+      "Даёт FDE и клиенту общую комнату для process maps, blockers, metrics, readouts и playbooks.",
+    "Maps people, policies, systems, documents, decisions, approvals, and bottlenecks into one living model.":
+      "Собирает людей, policies, systems, documents, decisions, approvals и bottlenecks в одну живую модель.",
+    "Turns messy APIs into safe, documented, permission-aware tools that agents can actually use.":
+      "Превращает хаотичные API в безопасные, документированные tools с permissions, которыми агент реально может пользоваться.",
+    "Runs task-specific agents with memory, tools, human handoff, retries, and traceable reasoning.":
+      "Запускает специализированных агентов с памятью, tools, human handoff, retries и трассируемым reasoning.",
+    "Project": "Проект",
+    "Company": "Компания",
+    "Industry": "Индустрия",
+    "Primary KPI": "Главный KPI",
+    "Risk level": "Уровень риска",
+    "Timeline": "Срок",
+    "Owner": "Владелец",
+    "System": "Система",
+    "Time": "Время",
+    "Status": "Статус",
+    "Tools": "Tools",
+    "Evals": "Evals",
+    "Quality": "Качество",
+    "Uses": "Использований",
+    "Fingerprint": "Fingerprint",
+    "Source": "Источник",
+    "Data class": "Класс данных",
+    "Access": "Доступ",
+    "Refresh": "Обновление",
+    "Purpose": "Назначение",
+    "Records": "Записи",
+    "Type": "Тип",
+    "Owner mapped": "Владелец указан",
+    "Access mode": "Режим доступа",
+    "Sensitive data controls": "Контроль чувствительных данных",
+    "Refresh cadence": "Частота обновления",
+    "Records and purpose": "Записи и назначение",
+    "Knowledge evidence": "Knowledge evidence",
+    "Pilot gate": "Pilot gate",
+    "Average readiness": "Средняя готовность",
+    "Sources tested": "Источники проверены",
+    "Mode": "Режим",
+    "Dry-run": "Dry-run",
+    "Live": "Live",
+    "Active user": "Активный пользователь",
+    "Permissions": "Permissions",
+    "Security score": "Security score",
+    "Security findings": "Security findings",
+    "Permission matrix": "Матрица permissions",
+    "Shared tasks": "Общие задачи",
+    "New comment": "Новый комментарий",
+    "Task title": "Название задачи",
+    "Due": "Срок",
+    "Before": "До",
+    "After": "После",
+    "Impact": "Impact",
+    "Complexity": "Сложность",
+    "Risk": "Риск",
+    "Data": "Данные",
+    "API": "API",
+    "Score": "Score",
+    "Reason": "Причина",
+    "Recommendation": "Рекомендация",
+    "Confidence": "Confidence",
+    "Cost": "Стоимость",
+    "Latency": "Latency",
+    "Pass": "Pass",
+    "Fail": "Fail",
+    "Passed": "Пройдено",
+    "Failed": "Не пройдено",
+    "Pending": "Ожидает",
+    "Critical": "Критично",
+    "High": "Высокий",
+    "Medium": "Средний",
+    "Low": "Низкий",
+    "Compliance": "Compliance",
+    "Operations": "Operations",
+    "Data platform": "Data platform",
+    "Customer systems": "Customer systems",
+    "API owner": "API owner",
+    "Governance": "Управление",
+    "Human-in-loop": "Human-in-loop",
+    "Service account + approval": "Service account + approval",
+    "User delegated": "User delegated",
+    "Read-only service": "Read-only service",
+    "Monitoring system": "Система мониторинга",
+    "Transaction warehouse": "Transaction warehouse",
+    "AML analyst": "AML-аналитик",
+    "KYC database": "KYC database",
+    "Compliance lead": "Compliance lead",
+    "Alert appears": "Появляется alert",
+    "Analyst opens case": "Аналитик открывает кейс",
+    "Gather context": "Собрать контекст",
+    "Check policy": "Проверить policy",
+    "Draft recommendation": "Подготовить рекомендацию",
+    "Human review": "Ручная проверка",
+    "Raw alert has too little context.": "В сыром alert слишком мало контекста.",
+    "Analyst opens five tools by hand.": "Аналитик вручную открывает пять tools.",
+    "KYC, transaction history, sanctions, and policy are scattered.":
+      "KYC, transaction history, sanctions и policy разбросаны по разным местам.",
+    "Rules are buried in policy docs and Slack clarifications.":
+      "Правила спрятаны в policy docs и Slack-уточнениях.",
+    "Decision quality varies by analyst experience.":
+      "Качество решения зависит от опыта аналитика.",
+    "High-risk cases need a human before any filing.":
+      "High-risk кейсы требуют человека до любой подачи.",
+    "Trigger": "Триггер",
+    "Risk signal": "Risk signal",
+    "Case setup": "Настройка кейса",
+    "Manual handoff": "Ручная передача",
+    "Data gathering": "Сбор данных",
+    "Bottleneck": "Bottleneck",
+    "Policy lookup": "Поиск policy",
+    "Tribal knowledge": "Tribal knowledge",
+    "Agent assist": "Помощь агента",
+    "Confidence score": "Confidence score",
+    "Approval gate": "Approval gate",
+    "Audit trail": "Audit trail",
+  })
+);
+
+const ruPatterns = [
+  [/^(\d+) docs indexed$/, "$1 документов проиндексировано"],
+  [/^(\d+) documents$/, "$1 документов"],
+  [/^(\d+) templates$/, "$1 шаблонов"],
+  [/^(\d+) sources tested$/, "$1 источников проверено"],
+  [/^(\d+) connectors tested$/, "$1 коннекторов проверено"],
+  [/^(\d+)\/(\d+) ready$/, "$1/$2 готово"],
+  [/^(\d+)% ready$/, "$1% готово"],
+  [/^Security (\d+)%$/, "Безопасность $1%"],
+  [/^Readiness (\d+)%$/, "Готовность $1%"],
+  [/^DB v(.+) · (.+)KB · (\d+) backups$/, "БД v$1 · $2KB · $3 backups"],
+  [/^Backup (.+)$/, "Backup $1"],
+  [/^Loaded playbook: (.+)$/, "Загружен плейбук: $1"],
+  [/^(.+) min$/, "$1 мин"],
+  [/^(.+) mins$/, "$1 мин"],
+  [/^(.+) hours$/, "$1 часов"],
+  [/^(.+) days$/, "$1 дней"],
+];
+
+const ruPhraseReplacements = [
+  [/\bAI intake\b/gi, "AI-ввод"],
+  [/\bworkspace\b/gi, "workspace"],
+  [/\bworkspaces\b/gi, "workspaces"],
+  [/\bcontext graph\b/gi, "граф контекста"],
+  [/\bconnectors\b/gi, "коннекторы"],
+  [/\bconnector\b/gi, "коннектор"],
+  [/\bknowledge base\b/gi, "база знаний"],
+  [/\btool fabric\b/gi, "слой инструментов"],
+  [/\btool\b/gi, "tool"],
+  [/\btools\b/gi, "tools"],
+  [/\bgovernance\b/gi, "управление"],
+  [/\bsecurity\b/gi, "безопасность"],
+  [/\bcollaboration\b/gi, "совместная работа"],
+  [/\bprocess map\b/gi, "карта процесса"],
+  [/\bopportunity\b/gi, "возможность"],
+  [/\bopportunities\b/gi, "возможности"],
+  [/\bvalue model\b/gi, "модель ценности"],
+  [/\bagent builder\b/gi, "конструктор агента"],
+  [/\bagent runtime\b/gi, "runtime агента"],
+  [/\bagent-assisted\b/gi, "с помощью агента"],
+  [/\bagents\b/gi, "агенты"],
+  [/\bagent\b/gi, "агент"],
+  [/\beval center\b/gi, "центр evals"],
+  [/\bevals\b/gi, "evals"],
+  [/\beval\b/gi, "eval"],
+  [/\bdeployment\b/gi, "деплой"],
+  [/\bexecutive readout\b/gi, "executive-отчёт"],
+  [/\bplaybooks\b/gi, "плейбуки"],
+  [/\bplaybook\b/gi, "плейбук"],
+  [/\bclient\b/gi, "клиент"],
+  [/\bcustomer\b/gi, "клиент"],
+  [/\bcustomers\b/gi, "клиенты"],
+  [/\bprocess\b/gi, "процесс"],
+  [/\bprocesses\b/gi, "процессы"],
+  [/\bworkflow\b/gi, "workflow"],
+  [/\bworkflows\b/gi, "workflows"],
+  [/\bpolicy\b/gi, "policy"],
+  [/\bpolicies\b/gi, "policies"],
+  [/\bapproval\b/gi, "approval"],
+  [/\bapprovals\b/gi, "approvals"],
+  [/\bpermission\b/gi, "permission"],
+  [/\bpermissions\b/gi, "permissions"],
+  [/\baudit\b/gi, "аудит"],
+  [/\bcompliance\b/gi, "compliance"],
+  [/\bcase\b/gi, "кейс"],
+  [/\bcases\b/gi, "кейсы"],
+  [/\bsource\b/gi, "источник"],
+  [/\bsources\b/gi, "источники"],
+  [/\bdata\b/gi, "данные"],
+  [/\bdocument\b/gi, "документ"],
+  [/\bdocuments\b/gi, "документы"],
+  [/\bmetrics\b/gi, "метрики"],
+  [/\bmetric\b/gi, "метрика"],
+  [/\bblocker\b/gi, "blocker"],
+  [/\bblockers\b/gi, "blockers"],
+  [/\bbottleneck\b/gi, "bottleneck"],
+  [/\bbottlenecks\b/gi, "bottlenecks"],
+  [/\brisk\b/gi, "риск"],
+  [/\brisks\b/gi, "риски"],
+  [/\bready\b/gi, "готово"],
+  [/\bpassed\b/gi, "пройдено"],
+  [/\bfailed\b/gi, "не пройдено"],
+  [/\bpending\b/gi, "ожидает"],
+  [/\breview\b/gi, "проверка"],
+  [/\bhuman\b/gi, "человек"],
+  [/\bmanual\b/gi, "ручной"],
+  [/\bmasked\b/gi, "замаскировано"],
+  [/\bmasking\b/gi, "маскирование"],
+  [/\btrace\b/gi, "trace"],
+  [/\btraces\b/gi, "traces"],
+];
+
+function translateText(value) {
+  const text = String(value ?? "");
+  const leading = text.match(/^\s*/)?.[0] || "";
+  const trailing = text.match(/\s*$/)?.[0] || "";
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return text;
+  const exact = ruDictionary.get(normalized);
+  if (exact) return `${leading}${exact}${trailing}`;
+  for (const [pattern, replacement] of ruPatterns) {
+    if (pattern.test(normalized)) return `${leading}${normalized.replace(pattern, replacement)}${trailing}`;
+  }
+  const partiallyTranslated = ruPhraseReplacements.reduce(
+    (translated, [pattern, replacement]) => translated.replace(pattern, replacement),
+    normalized,
+  );
+  if (partiallyTranslated !== normalized) return `${leading}${partiallyTranslated}${trailing}`;
+  return text;
+}
+
+function uiText(value) {
+  return state.language === "ru" ? translateText(value) : value;
+}
+
+function isTranslationSkipped(element) {
+  return Boolean(
+    element?.closest(
+      "script, style, pre, code, textarea, input, select, option, .manifest-preview, .playbook-fingerprint"
+    )
+  );
+}
+
+function translateTextNode(node) {
+  const parent = node.parentElement;
+  if (!parent || isTranslationSkipped(parent)) return;
+  if (!textNodeOriginals.has(node)) {
+    textNodeOriginals.set(node, node.nodeValue);
+  }
+  const original = textNodeOriginals.get(node);
+  node.nodeValue = state.language === "ru" ? translateText(original) : original;
+}
+
+function translateAttribute(element, attribute) {
+  if (element.id === "openapi-input") return;
+  let originals = attributeOriginals.get(element);
+  if (!originals) {
+    originals = {};
+    attributeOriginals.set(element, originals);
+  }
+  if (!originals[attribute]) {
+    originals[attribute] = element.getAttribute(attribute);
+  }
+  const original = originals[attribute];
+  if (!original) return;
+  if (original.trim().startsWith("{")) return;
+  element.setAttribute(attribute, state.language === "ru" ? translateText(original) : original);
+}
+
+function applyLanguage() {
+  document.documentElement.lang = state.language === "ru" ? "ru" : "en";
+  const toggle = document.querySelector("#language-toggle");
+  if (toggle) {
+    toggle.textContent = state.language === "ru" ? "EN" : "RU";
+    toggle.classList.toggle("active", state.language === "ru");
+    toggle.setAttribute("aria-label", state.language === "ru" ? "Switch to English" : "Переключить на русский");
+  }
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(translateTextNode);
+  document.querySelectorAll("[placeholder]").forEach((element) => translateAttribute(element, "placeholder"));
+  document.querySelectorAll("[title]").forEach((element) => translateAttribute(element, "title"));
+}
+
+function toggleLanguage() {
+  state.language = state.language === "ru" ? "en" : "ru";
+  localStorage.setItem(LANG_STORAGE_KEY, state.language);
+  renderAll({ keepFormValues: true });
+  switchView(state.activeView);
+  applyLanguage();
+}
 
 const layers = [
   {
@@ -1406,7 +2063,7 @@ async function refreshRetrievalEvidence() {
 function setStorageStatus(text, variant = "") {
   const element = document.querySelector("#storage-status");
   if (!element) return;
-  element.textContent = text;
+  element.textContent = uiText(text);
   element.className = `status-pill ${variant}`.trim();
 }
 
@@ -1415,12 +2072,12 @@ function renderDatabaseStatus() {
   if (!element) return;
   const status = state.databaseStatus;
   if (!status) {
-    element.textContent = state.backendOnline ? "DB checking" : "DB offline";
+    element.textContent = uiText(state.backendOnline ? "DB checking" : "DB offline");
     element.className = `status-pill ${state.backendOnline ? "amber" : ""}`.trim();
     return;
   }
   const sizeKb = Math.max(1, Math.round((status.file?.sizeBytes || 0) / 1024));
-  element.textContent = `DB v${status.schemaVersion} · ${sizeKb}KB · ${status.backupCount || 0} backups`;
+  element.textContent = uiText(`DB v${status.schemaVersion} · ${sizeKb}KB · ${status.backupCount || 0} backups`);
   element.className = `status-pill ${status.ok ? "green" : "amber"}`.trim();
 }
 
@@ -1439,7 +2096,7 @@ async function refreshDatabaseStatus() {
 async function backupDatabase() {
   const button = document.querySelector("#backup-database");
   button.disabled = true;
-  button.textContent = "Backing up";
+  button.textContent = uiText("Backing up");
   try {
     const response = await apiRequest("/database/backup", {
       method: "POST",
@@ -1454,7 +2111,7 @@ async function backupDatabase() {
     setStorageStatus("Backup failed", "amber");
   } finally {
     button.disabled = false;
-    button.textContent = "Backup DB";
+    button.textContent = uiText("Backup DB");
     renderDatabaseStatus();
   }
 }
@@ -5527,6 +6184,7 @@ function switchView(viewId) {
   });
   const activeButton = document.querySelector(`[data-view="${viewId}"]`);
   document.querySelector("#view-title").textContent = activeButton ? activeButton.textContent.trim().replace(/^\d+\s*/, "") : "Workspace";
+  applyLanguage();
 }
 
 function resetDemo() {
@@ -5580,6 +6238,7 @@ function renderAll(options = {}) {
     populateProjectForm();
     populateValueForm();
   }
+  applyLanguage();
 }
 
 document.querySelectorAll("[data-view]").forEach((button) => {
@@ -5601,6 +6260,7 @@ document.querySelector("#save-workspace").addEventListener("click", () => {
 document.querySelector("#backup-database").addEventListener("click", backupDatabase);
 document.querySelector("#export-workspace").addEventListener("click", exportWorkspace);
 document.querySelector("#import-workspace").addEventListener("change", importWorkspace);
+document.querySelector("#language-toggle").addEventListener("click", toggleLanguage);
 document.querySelector("#generate-intake").addEventListener("click", generateWorkspaceFromIntake);
 document.querySelector("#clear-intake").addEventListener("click", clearIntake);
 document.querySelectorAll("[data-intake-preset]").forEach((button) => {
