@@ -532,6 +532,295 @@ p {
   background: #f1c56d;
 }
 
+.badge.l0 {
+  background: #5f6b7a;
+}
+
+.badge.l4-l5 {
+  background: linear-gradient(90deg, var(--purple), var(--red));
+}
+
+.case-theater-panel {
+  overflow: hidden;
+}
+
+.case-theater {
+  display: grid;
+  gap: 16px;
+}
+
+.case-theater-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(20, 33, 61, 0.04), rgba(196, 135, 42, 0.08));
+}
+
+.case-theater-intro h3 {
+  margin: 4px 0 8px;
+  font-size: 26px;
+}
+
+.case-theater-intro p {
+  max-width: 780px;
+  margin: 0;
+}
+
+.case-demo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.case-picker {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.case-picker-card {
+  display: grid;
+  gap: 6px;
+  min-height: 116px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.52);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.case-picker-card.active {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  box-shadow: 0 12px 30px rgba(196, 135, 42, 0.16);
+}
+
+.case-picker-card span,
+.case-picker-card small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.case-picker-card strong {
+  font-size: 15px;
+}
+
+.case-demo-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.8fr);
+  gap: 16px;
+}
+
+.case-demo-screen,
+.case-explainer {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.case-demo-screen {
+  position: relative;
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  overflow: hidden;
+}
+
+.demo-progress-line {
+  position: relative;
+  height: 18px;
+  border-radius: 999px;
+  background: #edf1ec;
+}
+
+.demo-progress-line div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--blue), var(--green), var(--gold));
+  transition: width 0.35s ease;
+}
+
+.demo-progress-line span {
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  border: 3px solid #fffdf7;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 8px 22px rgba(20, 33, 61, 0.22);
+  transform: translate(-50%, -50%);
+  transition: left 0.35s ease;
+}
+
+.case-stage-rail {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(128px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.case-stage {
+  display: grid;
+  gap: 8px;
+  min-height: 148px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.case-stage.done {
+  border-color: rgba(47, 125, 87, 0.34);
+  background: var(--green-soft);
+}
+
+.case-stage.active {
+  border-color: var(--ink);
+  background: #fffdf7;
+  box-shadow: 0 14px 34px rgba(20, 33, 61, 0.16);
+  transform: translateY(-2px);
+}
+
+.case-stage.upcoming {
+  opacity: 0.58;
+}
+
+.case-step-number {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fffdf7;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.case-stage strong {
+  font-size: 14px;
+}
+
+.case-stage small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.case-motion-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr) 34px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+}
+
+.motion-card {
+  min-height: 170px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.motion-card span,
+.plain-explainer span,
+.case-metrics span,
+.case-demo-note {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.motion-card p {
+  margin-top: 10px;
+  color: var(--ink);
+}
+
+.motion-card.module {
+  border-color: rgba(196, 135, 42, 0.58);
+  background: var(--gold-soft);
+}
+
+.motion-card.module strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 22px;
+}
+
+.motion-arrow {
+  display: grid;
+  place-items: center;
+  color: var(--gold);
+  font-weight: 900;
+}
+
+.case-explainer {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding: 18px;
+}
+
+.case-explainer-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.case-explainer h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.plain-explainer {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(248, 245, 236, 0.72);
+}
+
+.plain-explainer p {
+  margin: 8px 0 0;
+  color: var(--ink);
+}
+
+.case-metrics {
+  display: grid;
+  gap: 10px;
+}
+
+.case-metrics article {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.case-metrics strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 18px;
+}
+
+.case-demo-note {
+  margin: 0;
+}
+
 .layer-grid,
 .tool-grid,
 .playbook-grid {
@@ -3163,7 +3452,9 @@ p {
 
   .two-column,
   .selected-opportunity,
-  .readout {
+  .readout,
+  .case-demo-shell,
+  .case-motion-board {
     grid-template-columns: 1fr;
   }
 
@@ -3172,11 +3463,20 @@ p {
   .playbook-grid,
   .playbook-toolbar,
   .form-grid,
+  .case-picker,
   .intake-help,
   .graph-memory-summary,
   .context-lanes,
   .metrics-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .case-stage-rail {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+
+  .motion-arrow {
+    min-height: 20px;
   }
 
   .editor-step {
@@ -3311,6 +3611,10 @@ p {
   .playbook-toolbar,
   .metrics-strip,
   .form-grid,
+  .case-picker,
+  .case-stage-rail,
+  .case-demo-shell,
+  .case-motion-board,
   .intake-help,
   .intake-presets,
   .graph-search,
@@ -3323,6 +3627,10 @@ p {
   .playbook-stats,
   .playbook-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .case-theater-intro {
+    display: grid;
   }
 
   .span-2 {

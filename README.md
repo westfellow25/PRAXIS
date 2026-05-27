@@ -6,19 +6,20 @@ It demonstrates the first product wedge:
 
 1. Paste a messy client process into AI Intake.
 2. Generate a structured deployment workspace.
-3. Build a context graph of people, systems, tools, and controls.
-4. Map client systems into data connectors with access, PII, owners, and readiness.
-5. Convert APIs into an agent-ready Tool Fabric.
-6. Define governance, approvals, and audit policy.
-7. Map the enterprise workflow.
-8. Score AI deployment opportunities.
-9. Model ROI, hours saved, adoption, payback, and platform cost.
-10. Build a human-in-the-loop agent workflow.
-11. Watch a pilot case move through connectors, tools, agent runtime, evals, approvals, and audit.
-12. Run an eval suite.
-13. Build a 30-day deployment plan.
-14. Generate an executive readout.
-15. Save the pattern as a reusable playbook.
+3. Show visual case demos where a workflow moves through PRAXIS step by step.
+4. Build a context graph of people, systems, tools, and controls.
+5. Map client systems into data connectors with access, PII, owners, and readiness.
+6. Convert APIs into an agent-ready Tool Fabric.
+7. Define governance, approvals, and audit policy.
+8. Map the enterprise workflow.
+9. Score AI deployment opportunities.
+10. Model ROI, hours saved, adoption, payback, and platform cost.
+11. Build a human-in-the-loop agent workflow.
+12. Watch a pilot case move through connectors, tools, agent runtime, evals, approvals, and audit.
+13. Run an eval suite.
+14. Build a 30-day deployment plan.
+15. Generate an executive readout.
+16. Save the pattern as a reusable playbook.
 
 ## How to open
 
@@ -107,6 +108,7 @@ Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
 - Generate a workspace from a raw process description through the backend intake engine, with schema validation, repair/retry, and browser fallback.
 - Switch between demo users, inspect RBAC permissions, run SSO/SCIM/RBAC security checks, and sync a local SCIM manifest.
 - Use four demo intake presets: banking AML, insurance claims, legal review, and SaaS support.
+- Open Cases and press Play to show five visual workflow demos: banking AML, insurance claims, pharma safety, legal review, and SaaS support.
 - View, sync, and search a generated Context Graph with people, systems, agent tools, controls, lineage, and readiness blockers.
 - Manage connector readiness across source systems, data classes, access modes, refresh cadence, and blockers.
 - Run connector dry-run tests that check access, owner, data controls, refresh cadence, Knowledge Base evidence, and pilot gates before agents rely on sources.

@@ -5,6 +5,7 @@ const LANG_STORAGE_KEY = "praxis-mvp-language-v1";
 const API_BASE = "/api";
 let workspaceSyncTimer = null;
 let playbookSyncTimer = null;
+let caseDemoTimer = null;
 const requestedLanguage = new URLSearchParams(window.location.search).get("lang");
 const initialLanguage = ["en", "ru"].includes(requestedLanguage)
   ? requestedLanguage
@@ -17,6 +18,7 @@ const state = {
   language: initialLanguage,
   activeView: "intake",
   selectedOpportunity: "aml",
+  caseDemo: { selectedId: "bank-aml", activeStep: 0, playing: false },
   evalsRun: false,
   project: null,
   playbooks: [],
@@ -53,6 +55,7 @@ const ruDictionary = new Map(
   Object.entries({
     "AI Intake": "AI-ввод",
     "Workspace": "Рабочее пространство",
+    "Cases": "Кейсы",
     "Context Graph": "Граф контекста",
     "Connectors": "Коннекторы",
     "Knowledge Base": "База знаний",
@@ -69,6 +72,52 @@ const ruDictionary = new Map(
     "Deployment": "Деплой",
     "Executive Readout": "Executive-отчёт",
     "Playbooks": "Плейбуки",
+    "Press play and watch a client workflow move through PRAXIS.":
+      "Нажми Play и посмотри, как клиентский workflow проходит через PRAXIS.",
+    "Interactive demo": "Интерактивное демо",
+    "Playing demo": "Демо играет",
+    "Play": "Play",
+    "Pause": "Pause",
+    "Next step": "Следующий шаг",
+    "Reset": "Сброс",
+    "What is happening now": "Что сейчас происходит",
+    "Why it matters": "Почему это важно",
+    "Input": "Вход",
+    "PRAXIS module": "Модуль PRAXIS",
+    "Output": "Выход",
+    "Human gate": "Human gate",
+    "Before PRAXIS": "До PRAXIS",
+    "After PRAXIS": "После PRAXIS",
+    "Current step": "Текущий шаг",
+    "Demo stage": "Стадия демо",
+    "Banking": "Банкинг",
+    "Insurance": "Страхование",
+    "Pharma": "Фарма",
+    "Legal": "Юристы",
+    "SaaS": "SaaS",
+    "AML Alert Briefing": "AML-брифинг алерта",
+    "Claims Triage Packet": "Triage-пакет claims",
+    "Adverse Event Intake": "Intake adverse event",
+    "Contract Review Brief": "Brief contract review",
+    "L2 Support Reply Agent": "L2 Support Reply Agent",
+    "45 min / case": "45 мин / кейс",
+    "9 min / case": "9 мин / кейс",
+    "3 days to first review": "3 дня до первого review",
+    "20 min to triage": "20 мин до triage",
+    "36 hours to classify": "36 часов до классификации",
+    "12 min to packet": "12 мин до packet",
+    "5 hours / contract": "5 часов / контракт",
+    "35 min / review": "35 мин / review",
+    "28 min / ticket": "28 мин / ticket",
+    "4 min / draft": "4 мин / draft",
+    "$2.4M annual value": "$2.4M годовой ценности",
+    "$5.1M leakage reduction": "$5.1M снижения leakage",
+    "Lower reporting risk": "Ниже reporting risk",
+    "Faster revenue cycle": "Быстрее revenue cycle",
+    "Higher CSAT, lower backlog": "Выше CSAT, ниже backlog",
+    "Investor/client demo": "Демо для инвестора/клиента",
+    "Click a case, then press Play. The visual packet moves left to right and shows which PRAXIS module activates at each stage.":
+      "Выбери кейс и нажми Play. Визуальный пакет движется слева направо и показывает, какой модуль PRAXIS включается на каждой стадии.",
     "Design partner workspace": "Workspace дизайн-партнёра",
     "Demo Case": "Демо-кейс",
     "AML Alert Briefing": "AML-брифинг алерта",
@@ -521,6 +570,91 @@ const ruDictionary = new Map(
   })
 );
 
+[
+  ["Analysts spend 45 minutes collecting evidence before they can recommend what to do with one alert.", "Аналитики тратят 45 минут на сбор evidence, прежде чем рекомендовать действие по одному alert."],
+  ["Adjusters lose hours collecting policy, photos, notes, fraud signals, and repair estimates.", "Adjusters теряют часы на сбор policy, фото, заметок, fraud signals и repair estimates."],
+  ["Safety teams manually classify emails and call notes for adverse event reporting.", "Safety-команды вручную классифицируют emails и call notes для adverse event reporting."],
+  ["Legal teams review repetitive vendor contracts by searching clauses and playbooks manually.", "Юристы вручную проверяют повторяющиеся vendor contracts, ищут clauses и playbooks."],
+  ["Support engineers answer repeat technical tickets by searching docs, logs, and past resolutions.", "Support engineers отвечают на повторяющиеся technical tickets, вручную ищут docs, logs и прошлые решения."],
+  ["Analyst approves high-risk recommendations before anything is filed.", "Аналитик approves high-risk recommendations до любой подачи."],
+  ["Low-risk claims get a prepared packet; suspicious claims go to senior review.", "Low-risk claims получают готовый packet; suspicious claims уходят на senior review."],
+  ["Drug-safety reviewer signs off before regulatory submission.", "Drug-safety reviewer подписывает кейс до regulatory submission."],
+  ["Attorney reviews every redline before it leaves legal.", "Attorney проверяет каждый redline до выхода из legal."],
+  ["Support engineer approves customer-facing replies.", "Support engineer approves ответы до отправки клиенту."],
+  ["Messy alert arrives", "Приходит messy alert"],
+  ["Map the investigation", "Построить карту investigation"],
+  ["Check source readiness", "Проверить готовность источников"],
+  ["Prepare safe tools", "Подготовить безопасные tools"],
+  ["Build the evidence packet", "Собрать evidence packet"],
+  ["Prove it is safe", "Доказать, что это безопасно"],
+  ["Claim lands", "Приходит claim"],
+  ["Collect policy evidence", "Собрать policy evidence"],
+  ["Verify systems", "Проверить системы"],
+  ["Create triage packet", "Создать triage packet"],
+  ["Compare with past claims", "Сравнить с прошлыми claims"],
+  ["Show ROI and rollout", "Показать ROI и rollout"],
+  ["Safety signal appears", "Появляется safety signal"],
+  ["Lock down rules first", "Сначала зафиксировать правила"],
+  ["Ground in guidance", "Заземлить в guidance"],
+  ["Draft intake packet", "Подготовить intake packet"],
+  ["Test critical misses", "Проверить critical misses"],
+  ["Manage reviewer queue", "Управлять reviewer queue"],
+  ["Contract request arrives", "Приходит contract request"],
+  ["Load playbooks", "Загрузить playbooks"],
+  ["Expose safe actions", "Открыть безопасные actions"],
+  ["Draft review brief", "Подготовить review brief"],
+  ["Protect privilege", "Защитить privilege"],
+  ["Reuse by contract type", "Переиспользовать по типу contract"],
+  ["Ticket arrives", "Приходит ticket"],
+  ["Map customer context", "Построить customer context"],
+  ["Prepare read-only tools", "Подготовить read-only tools"],
+  ["Draft support answer", "Подготовить support answer"],
+  ["Check answer quality", "Проверить качество ответа"],
+  ["Prove support leverage", "Доказать support leverage"],
+  ["A messy note becomes a clean project brief.", "Хаотичная заметка превращается в чистый project brief."],
+  ["Like drawing a map before sending the agent into the city.", "Как нарисовать карту перед тем, как отправить агента в город."],
+  ["PRAXIS checks which doors the agent can open safely.", "PRAXIS проверяет, какие двери агент может безопасно открыть."],
+  ["The agent gets labeled tools, not random dangerous buttons.", "Агент получает подписанные tools, а не случайные опасные кнопки."],
+  ["The agent prepares the homework; the analyst still grades it.", "Агент готовит домашку; аналитик всё равно ставит оценку."],
+  ["The teacher checks the agent before the agent helps in real life.", "Учитель проверяет агента до того, как агент помогает в реальной работе."],
+  ["A pile of claim material becomes one clean case.", "Куча материалов по claim становится одним чистым кейсом."],
+  ["PRAXIS turns a filing cabinet into searchable Lego blocks.", "PRAXIS превращает шкаф с файлами в searchable blocks."],
+  ["It checks whether each data pipe has water in it.", "Он проверяет, есть ли вода в каждой трубе данных."],
+  ["The agent builds the folder the adjuster wishes existed.", "Агент собирает папку, которую adjuster хотел бы иметь сразу."],
+  ["PRAXIS asks: would this have matched what humans did before?", "PRAXIS спрашивает: совпало бы это с тем, что раньше делали люди?"],
+  ["The pilot becomes a repeatable recipe.", "Пилот становится повторяемым рецептом."],
+  ["A risky message becomes a structured safety case.", "Рискованное сообщение становится структурированным safety case."],
+  ["Before the agent reads anything, PRAXIS sets the safety rails.", "До того как агент что-то читает, PRAXIS ставит safety rails."],
+  ["The agent gets the rulebook open on the right page.", "Агент получает rulebook, открытый на нужной странице."],
+  ["The agent writes the first draft, not the final report.", "Агент пишет первый draft, не финальный report."],
+  ["The most important test is: did it miss a dangerous case?", "Самый важный тест: не пропустил ли он опасный кейс?"],
+  ["Humans see only the cases where judgment matters.", "Люди видят только кейсы, где реально нужен judgment."],
+  ["A legal request becomes a checklistable workflow.", "Legal request становится workflow, который можно проверить по checklist."],
+  ["PRAXIS gives the agent the company’s legal memory.", "PRAXIS даёт агенту legal memory компании."],
+  ["The agent can suggest edits, but cannot email the vendor.", "Агент может предложить edits, но не может отправить vendor email."],
+  ["It prepares the lawyer’s review packet.", "Он готовит review packet для юриста."],
+  ["PRAXIS keeps legal secrets inside the right room.", "PRAXIS держит legal secrets внутри правильной комнаты."],
+  ["Every reviewed contract teaches the next one.", "Каждый проверенный contract учит следующий."],
+  ["A noisy ticket becomes a solvable support case.", "Шумный ticket становится решаемым support case."],
+  ["The agent learns who this customer is before answering.", "Агент понимает, кто этот customer, до ответа."],
+  ["The agent gets a flashlight, not a hammer.", "Агент получает фонарик, а не молоток."],
+  ["The agent writes the first reply with receipts.", "Агент пишет первый ответ с evidence-ссылками."],
+  ["PRAXIS checks whether the answer is actually helpful.", "PRAXIS проверяет, действительно ли ответ полезен."],
+  ["Leadership sees whether the agent saves real time.", "Руководство видит, экономит ли агент реальное время."],
+  ["A suspicious transfer hits the AML queue.", "Подозрительный transfer попадает в AML queue."],
+  ["PRAXIS identifies the workflow, KPI, systems, risk level, and first pilot.", "PRAXIS определяет workflow, KPI, systems, risk level и первый pilot."],
+  ["Analyst, compliance lead, ServiceNow, KYC DB, transactions, sanctions API.", "Analyst, compliance lead, ServiceNow, KYC DB, transactions, sanctions API."],
+  ["People, systems, documents, decisions, and blockers become one map.", "People, systems, documents, decisions и blockers становятся одной картой."],
+  ["KYC is PII, transactions are confidential, case creation needs approval.", "KYC это PII, transactions confidential, создание кейса требует approval."],
+  ["Readiness score, blocked sources, owners, and data masking needs.", "Readiness score, blocked sources, owners и data masking needs."],
+  ["getCustomerKYC, getTransactions, checkSanctions, appendCaseNote.", "getCustomerKYC, getTransactions, checkSanctions, appendCaseNote."],
+  ["Agent-ready tool contracts with auth, owner, risk, and failure modes.", "Agent-ready tool contracts с auth, owner, risk и failure modes."],
+  ["One alert ID plus allowed tools and retrieved policy context.", "Один alert ID плюс allowed tools и retrieved policy context."],
+  ["Evidence summary, recommendation, confidence, and uncertainty notes.", "Evidence summary, recommendation, confidence и uncertainty notes."],
+  ["500 historic cases, policy gates, PII masking, audit rules.", "500 historic cases, policy gates, PII masking, audit rules."],
+  ["Pilot gate result, human handoff queue, audit trail, ROI dashboard.", "Pilot gate result, human handoff queue, audit trail, ROI dashboard."],
+].forEach(([english, russian]) => ruDictionary.set(english, russian));
+
 const ruPatterns = [
   [/^(\d+) docs indexed$/, "$1 документов проиндексировано"],
   [/^(\d+) documents$/, "$1 документов"],
@@ -730,6 +864,309 @@ const layers = [
     className: "l6",
     title: "Workspace",
     copy: "Gives FDEs and clients one shared room for process maps, blockers, metrics, readouts, and playbooks.",
+  },
+];
+
+const caseDemos = [
+  {
+    id: "bank-aml",
+    industry: "Banking",
+    title: "AML Alert Briefing",
+    problem: "Analysts spend 45 minutes collecting evidence before they can recommend what to do with one alert.",
+    before: "45 min / case",
+    after: "9 min / case",
+    roi: "$2.4M annual value",
+    humanGate: "Analyst approves high-risk recommendations before anything is filed.",
+    stages: [
+      {
+        module: "AI Intake",
+        layer: "L0",
+        title: "Messy alert arrives",
+        input: "A suspicious transfer hits the AML queue.",
+        output: "PRAXIS identifies the workflow, KPI, systems, risk level, and first pilot.",
+        simple: "A messy note becomes a clean project brief.",
+      },
+      {
+        module: "Context Graph",
+        layer: "L1",
+        title: "Map the investigation",
+        input: "Analyst, compliance lead, ServiceNow, KYC DB, transactions, sanctions API.",
+        output: "People, systems, documents, decisions, and blockers become one map.",
+        simple: "Like drawing a map before sending the agent into the city.",
+      },
+      {
+        module: "Connectors",
+        layer: "L1",
+        title: "Check source readiness",
+        input: "KYC is PII, transactions are confidential, case creation needs approval.",
+        output: "Readiness score, blocked sources, owners, and data masking needs.",
+        simple: "PRAXIS checks which doors the agent can open safely.",
+      },
+      {
+        module: "Tool Fabric",
+        layer: "L2",
+        title: "Prepare safe tools",
+        input: "getCustomerKYC, getTransactions, checkSanctions, appendCaseNote.",
+        output: "Agent-ready tool contracts with auth, owner, risk, and failure modes.",
+        simple: "The agent gets labeled tools, not random dangerous buttons.",
+      },
+      {
+        module: "Agent Runtime",
+        layer: "L3",
+        title: "Build the evidence packet",
+        input: "One alert ID plus allowed tools and retrieved policy context.",
+        output: "Evidence summary, recommendation, confidence, and uncertainty notes.",
+        simple: "The agent prepares the homework; the analyst still grades it.",
+      },
+      {
+        module: "Evals + Governance",
+        layer: "L4/L5",
+        title: "Prove it is safe",
+        input: "500 historic cases, policy gates, PII masking, audit rules.",
+        output: "Pilot gate result, human handoff queue, audit trail, ROI dashboard.",
+        simple: "The teacher checks the agent before the agent helps in real life.",
+      },
+    ],
+  },
+  {
+    id: "insurance-claims",
+    industry: "Insurance",
+    title: "Claims Triage Packet",
+    problem: "Adjusters lose hours collecting policy, photos, notes, fraud signals, and repair estimates.",
+    before: "3 days to first review",
+    after: "20 min to triage",
+    roi: "$5.1M leakage reduction",
+    humanGate: "Low-risk claims get a prepared packet; suspicious claims go to senior review.",
+    stages: [
+      {
+        module: "AI Intake",
+        layer: "L0",
+        title: "Claim lands",
+        input: "Customer submits photos, claim notes, policy number, and repair estimate.",
+        output: "PRAXIS sees a high-volume, packet-style workflow.",
+        simple: "A pile of claim material becomes one clean case.",
+      },
+      {
+        module: "Knowledge Base",
+        layer: "L1",
+        title: "Collect policy evidence",
+        input: "Policy PDFs, adjuster notes, prior claims, claim photos metadata.",
+        output: "Searchable chunks, coverage signals, exclusions, and missing documents.",
+        simple: "PRAXIS turns a filing cabinet into searchable Lego blocks.",
+      },
+      {
+        module: "Connectors",
+        layer: "L1",
+        title: "Verify systems",
+        input: "Claims platform, policy admin, fraud score, repair estimate provider.",
+        output: "Which sources are ready, stale, blocked, or missing owners.",
+        simple: "It checks whether each data pipe has water in it.",
+      },
+      {
+        module: "Agent Runtime",
+        layer: "L3",
+        title: "Create triage packet",
+        input: "Claim facts plus policy evidence and approved tools.",
+        output: "Coverage summary, risk flags, missing evidence, suggested route.",
+        simple: "The agent builds the folder the adjuster wishes existed.",
+      },
+      {
+        module: "Evals",
+        layer: "L4",
+        title: "Compare with past claims",
+        input: "Closed claims with known outcomes and fraud escalations.",
+        output: "Coverage match, leakage warnings, missed-fraud checks.",
+        simple: "PRAXIS asks: would this have matched what humans did before?",
+      },
+      {
+        module: "Workspace",
+        layer: "L6",
+        title: "Show ROI and rollout",
+        input: "Time saved, leakage avoided, adjuster adoption, escalation rate.",
+        output: "Executive readout and reusable Claims Triage Playbook.",
+        simple: "The pilot becomes a repeatable recipe.",
+      },
+    ],
+  },
+  {
+    id: "pharma-safety",
+    industry: "Pharma",
+    title: "Adverse Event Intake",
+    problem: "Safety teams manually classify emails and call notes for adverse event reporting.",
+    before: "36 hours to classify",
+    after: "12 min to packet",
+    roi: "Lower reporting risk",
+    humanGate: "Drug-safety reviewer signs off before regulatory submission.",
+    stages: [
+      {
+        module: "AI Intake",
+        layer: "L0",
+        title: "Safety signal appears",
+        input: "A patient email mentions dosage, symptoms, timing, and medication.",
+        output: "PRAXIS identifies pharmacovigilance intake as the workflow.",
+        simple: "A risky message becomes a structured safety case.",
+      },
+      {
+        module: "Governance",
+        layer: "L5",
+        title: "Lock down rules first",
+        input: "PHI, medical terms, reporting clock, reviewer approvals.",
+        output: "Masking, access control, approval gate, audit checklist.",
+        simple: "Before the agent reads anything, PRAXIS sets the safety rails.",
+      },
+      {
+        module: "Knowledge Base",
+        layer: "L1",
+        title: "Ground in guidance",
+        input: "SOPs, product labels, MedDRA terms, prior case narratives.",
+        output: "Retrieval context and required citation evidence.",
+        simple: "The agent gets the rulebook open on the right page.",
+      },
+      {
+        module: "Agent Runtime",
+        layer: "L3",
+        title: "Draft intake packet",
+        input: "Patient message plus allowed product and policy context.",
+        output: "Event classification, missing fields, seriousness flag, narrative draft.",
+        simple: "The agent writes the first draft, not the final report.",
+      },
+      {
+        module: "Evals",
+        layer: "L4",
+        title: "Test critical misses",
+        input: "Historic adverse events and non-events.",
+        output: "False-negative checks and escalation accuracy.",
+        simple: "The most important test is: did it miss a dangerous case?",
+      },
+      {
+        module: "Workspace",
+        layer: "L6",
+        title: "Manage reviewer queue",
+        input: "Cases needing human judgment or missing information.",
+        output: "Reviewer task list, SLA reminders, executive status.",
+        simple: "Humans see only the cases where judgment matters.",
+      },
+    ],
+  },
+  {
+    id: "legal-review",
+    industry: "Legal",
+    title: "Contract Review Brief",
+    problem: "Legal teams review repetitive vendor contracts by searching clauses and playbooks manually.",
+    before: "5 hours / contract",
+    after: "35 min / review",
+    roi: "Faster revenue cycle",
+    humanGate: "Attorney reviews every redline before it leaves legal.",
+    stages: [
+      {
+        module: "AI Intake",
+        layer: "L0",
+        title: "Contract request arrives",
+        input: "Vendor MSA, customer notes, deadline, risk tolerance.",
+        output: "PRAXIS frames contract review as the first deployment.",
+        simple: "A legal request becomes a checklistable workflow.",
+      },
+      {
+        module: "Knowledge Base",
+        layer: "L1",
+        title: "Load playbooks",
+        input: "Fallback positions, clause library, prior negotiated contracts.",
+        output: "Citation-ready contract context.",
+        simple: "PRAXIS gives the agent the company’s legal memory.",
+      },
+      {
+        module: "Tool Fabric",
+        layer: "L2",
+        title: "Expose safe actions",
+        input: "Read contract, find clause, draft redline, request approval.",
+        output: "Tools that draft suggestions but cannot send them externally.",
+        simple: "The agent can suggest edits, but cannot email the vendor.",
+      },
+      {
+        module: "Agent Runtime",
+        layer: "L3",
+        title: "Draft review brief",
+        input: "Contract text and legal playbook citations.",
+        output: "Risk summary, clause issues, suggested redlines, questions.",
+        simple: "It prepares the lawyer’s review packet.",
+      },
+      {
+        module: "Governance",
+        layer: "L5",
+        title: "Protect privilege",
+        input: "Attorney-client material, internal legal strategy, approvals.",
+        output: "Restricted output and audit trail.",
+        simple: "PRAXIS keeps legal secrets inside the right room.",
+      },
+      {
+        module: "Playbooks",
+        layer: "L6",
+        title: "Reuse by contract type",
+        input: "Finished review pattern and eval results.",
+        output: "MSA Review Playbook for the next vendor contract.",
+        simple: "Every reviewed contract teaches the next one.",
+      },
+    ],
+  },
+  {
+    id: "saas-support",
+    industry: "SaaS",
+    title: "L2 Support Reply Agent",
+    problem: "Support engineers answer repeat technical tickets by searching docs, logs, and past resolutions.",
+    before: "28 min / ticket",
+    after: "4 min / draft",
+    roi: "Higher CSAT, lower backlog",
+    humanGate: "Support engineer approves customer-facing replies.",
+    stages: [
+      {
+        module: "AI Intake",
+        layer: "L0",
+        title: "Ticket arrives",
+        input: "Customer says integration fails after an API change.",
+        output: "PRAXIS sees a repeatable L2 support workflow.",
+        simple: "A noisy ticket becomes a solvable support case.",
+      },
+      {
+        module: "Context Graph",
+        layer: "L1",
+        title: "Map customer context",
+        input: "Account tier, integration type, logs, docs, prior tickets.",
+        output: "Customer-specific context with permissions.",
+        simple: "The agent learns who this customer is before answering.",
+      },
+      {
+        module: "Tool Fabric",
+        layer: "L2",
+        title: "Prepare read-only tools",
+        input: "searchDocs, queryLogs, getAccountConfig, findPastTickets.",
+        output: "Safe tools that cannot mutate production.",
+        simple: "The agent gets a flashlight, not a hammer.",
+      },
+      {
+        module: "Agent Runtime",
+        layer: "L3",
+        title: "Draft support answer",
+        input: "Ticket plus logs, docs, config, and similar resolutions.",
+        output: "Answer draft, evidence links, confidence, next diagnostic.",
+        simple: "The agent writes the first reply with receipts.",
+      },
+      {
+        module: "Evals",
+        layer: "L4",
+        title: "Check answer quality",
+        input: "Resolved tickets and known-good responses.",
+        output: "Grounding, correctness, tone, and escalation checks.",
+        simple: "PRAXIS checks whether the answer is actually helpful.",
+      },
+      {
+        module: "Value Model",
+        layer: "L6",
+        title: "Prove support leverage",
+        input: "Ticket volume, handle time, deflection, CSAT.",
+        output: "Hours saved, backlog reduction, rollout plan.",
+        simple: "Leadership sees whether the agent saves real time.",
+      },
+    ],
   },
 ];
 
@@ -6174,8 +6611,197 @@ function deletePlaybook(playbookId) {
   renderPlaybooks();
 }
 
+function getSelectedCaseDemo() {
+  return caseDemos.find((demo) => demo.id === state.caseDemo.selectedId) || caseDemos[0];
+}
+
+function pauseCaseDemo() {
+  state.caseDemo.playing = false;
+  if (caseDemoTimer) {
+    clearInterval(caseDemoTimer);
+    caseDemoTimer = null;
+  }
+}
+
+function playCaseDemo() {
+  if (state.caseDemo.playing) return;
+  state.caseDemo.playing = true;
+  renderCaseTheater();
+  caseDemoTimer = setInterval(() => {
+    const demo = getSelectedCaseDemo();
+    if (state.caseDemo.activeStep >= demo.stages.length - 1) {
+      pauseCaseDemo();
+      renderCaseTheater();
+      return;
+    }
+    state.caseDemo.activeStep += 1;
+    renderCaseTheater();
+  }, 1300);
+}
+
+function resetCaseDemo() {
+  pauseCaseDemo();
+  state.caseDemo.activeStep = 0;
+  renderCaseTheater();
+}
+
+function selectCaseDemo(caseId) {
+  pauseCaseDemo();
+  state.caseDemo.selectedId = caseId;
+  state.caseDemo.activeStep = 0;
+  renderCaseTheater();
+}
+
+function setCaseDemoStep(stepIndex) {
+  pauseCaseDemo();
+  const demo = getSelectedCaseDemo();
+  state.caseDemo.activeStep = Math.max(0, Math.min(demo.stages.length - 1, Number(stepIndex) || 0));
+  renderCaseTheater();
+}
+
+function nextCaseDemoStep() {
+  const demo = getSelectedCaseDemo();
+  pauseCaseDemo();
+  state.caseDemo.activeStep = state.caseDemo.activeStep >= demo.stages.length - 1 ? 0 : state.caseDemo.activeStep + 1;
+  renderCaseTheater();
+}
+
+function renderCaseTheater() {
+  const container = document.querySelector("#case-theater");
+  if (!container) return;
+  const demo = getSelectedCaseDemo();
+  const activeIndex = Math.min(state.caseDemo.activeStep, demo.stages.length - 1);
+  const activeStage = demo.stages[activeIndex];
+  const progress = demo.stages.length <= 1 ? 0 : Math.round((activeIndex / (demo.stages.length - 1)) * 100);
+  document.querySelector("#case-demo-status").textContent = state.caseDemo.playing ? "Playing demo" : "Interactive demo";
+  container.innerHTML = `
+    <div class="case-theater-intro">
+      <div>
+        <div class="eyebrow">Investor/client demo</div>
+        <h3>${escapeHtml(demo.title)}</h3>
+        <p>${escapeHtml(demo.problem)}</p>
+      </div>
+      <div class="case-demo-controls">
+        <button class="primary-button small" id="case-play">${state.caseDemo.playing ? "Pause" : "Play"}</button>
+        <button class="ghost-button small" id="case-next">Next step</button>
+        <button class="ghost-button small" id="case-reset">Reset</button>
+      </div>
+    </div>
+
+    <div class="case-picker">
+      ${caseDemos
+        .map(
+          (item) => `
+            <button class="case-picker-card ${item.id === demo.id ? "active" : ""}" data-case-demo="${escapeHtml(item.id)}">
+              <span>${escapeHtml(item.industry)}</span>
+              <strong>${escapeHtml(item.title)}</strong>
+              <small>${escapeHtml(item.before)} -> ${escapeHtml(item.after)}</small>
+            </button>
+          `,
+        )
+        .join("")}
+    </div>
+
+    <div class="case-demo-shell">
+      <div class="case-demo-screen">
+        <div class="demo-progress-line">
+          <div style="width: ${progress}%"></div>
+          <span style="left: ${progress}%"></span>
+        </div>
+        <div class="case-stage-rail">
+          ${demo.stages
+            .map((stage, index) => {
+              const status = index < activeIndex ? "done" : index === activeIndex ? "active" : "upcoming";
+              return `
+                <button class="case-stage ${status}" data-case-step="${index}">
+                  <span class="case-step-number">${index + 1}</span>
+                  <span class="badge ${String(stage.layer).toLowerCase().replace("/", "-")}">${escapeHtml(stage.layer)}</span>
+                  <strong>${escapeHtml(stage.title)}</strong>
+                  <small>${escapeHtml(stage.module)}</small>
+                </button>
+              `;
+            })
+            .join("")}
+        </div>
+
+        <div class="case-motion-board">
+          <article class="motion-card input">
+            <span>Input</span>
+            <p>${escapeHtml(activeStage.input)}</p>
+          </article>
+          <div class="motion-arrow">-></div>
+          <article class="motion-card module">
+            <span>PRAXIS module</span>
+            <strong>${escapeHtml(activeStage.module)}</strong>
+            <p>Current step ${activeIndex + 1} of ${demo.stages.length}</p>
+          </article>
+          <div class="motion-arrow">-></div>
+          <article class="motion-card output">
+            <span>Output</span>
+            <p>${escapeHtml(activeStage.output)}</p>
+          </article>
+        </div>
+      </div>
+
+      <aside class="case-explainer">
+        <div class="case-explainer-top">
+          <span class="badge ${String(activeStage.layer).toLowerCase().replace("/", "-")}">${escapeHtml(activeStage.layer)}</span>
+          <strong>${escapeHtml(activeStage.module)}</strong>
+        </div>
+        <h3>${escapeHtml(activeStage.title)}</h3>
+        <div class="plain-explainer">
+          <span>What is happening now</span>
+          <p>${escapeHtml(activeStage.simple)}</p>
+        </div>
+        <div class="plain-explainer">
+          <span>Human gate</span>
+          <p>${escapeHtml(demo.humanGate)}</p>
+        </div>
+        <div class="case-metrics">
+          <article>
+            <span>Before PRAXIS</span>
+            <strong>${escapeHtml(demo.before)}</strong>
+          </article>
+          <article>
+            <span>After PRAXIS</span>
+            <strong>${escapeHtml(demo.after)}</strong>
+          </article>
+          <article>
+            <span>Expected ROI</span>
+            <strong>${escapeHtml(demo.roi)}</strong>
+          </article>
+        </div>
+      </aside>
+    </div>
+
+    <p class="case-demo-note">Click a case, then press Play. The visual packet moves left to right and shows which PRAXIS module activates at each stage.</p>
+  `;
+
+  document.querySelectorAll("[data-case-demo]").forEach((button) => {
+    button.addEventListener("click", () => selectCaseDemo(button.dataset.caseDemo));
+  });
+  document.querySelectorAll("[data-case-step]").forEach((button) => {
+    button.addEventListener("click", () => setCaseDemoStep(button.dataset.caseStep));
+  });
+  document.querySelector("#case-play")?.addEventListener("click", () => {
+    if (state.caseDemo.playing) {
+      pauseCaseDemo();
+      renderCaseTheater();
+    } else {
+      playCaseDemo();
+    }
+  });
+  document.querySelector("#case-next")?.addEventListener("click", nextCaseDemoStep);
+  document.querySelector("#case-reset")?.addEventListener("click", resetCaseDemo);
+  applyLanguage();
+}
+
 function switchView(viewId) {
+  if (viewId !== "cases") pauseCaseDemo();
   state.activeView = viewId;
+  if (window.location.hash !== `#${viewId}`) {
+    history.replaceState(null, "", `#${viewId}`);
+  }
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("active", view.id === viewId);
   });
@@ -6211,6 +6837,7 @@ function renderAll(options = {}) {
   renderProjectSummary();
   renderMetrics();
   renderLayers();
+  renderCaseTheater();
   renderProcess();
   renderProcessEditor();
   renderContextGraph();
@@ -6327,5 +6954,9 @@ document.querySelector("#generate-readout").addEventListener("click", () => {
   switchView("readout");
 });
 
+const initialView = window.location.hash.slice(1);
 renderAll();
+if (initialView && document.querySelector(`.view#${CSS.escape(initialView)}`)) {
+  switchView(initialView);
+}
 hydrateFromBackend();
