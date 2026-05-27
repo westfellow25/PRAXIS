@@ -76,10 +76,15 @@ const ruDictionary = new Map(
       "Нажми Play и посмотри, как клиентский workflow проходит через PRAXIS.",
     "Interactive demo": "Интерактивное демо",
     "Playing demo": "Демо играет",
+    "Pick a case": "Выбери кейс",
     "Play": "Play",
     "Pause": "Pause",
     "Next step": "Следующий шаг",
     "Reset": "Сброс",
+    "Situation": "Ситуация",
+    "Result": "Результат",
+    "Human check": "Проверка человеком",
+    "Business result": "Бизнес-результат",
     "What is happening now": "Что сейчас происходит",
     "Why it matters": "Почему это важно",
     "Input": "Вход",
@@ -6672,12 +6677,11 @@ function renderCaseTheater() {
   const demo = getSelectedCaseDemo();
   const activeIndex = Math.min(state.caseDemo.activeStep, demo.stages.length - 1);
   const activeStage = demo.stages[activeIndex];
-  const progress = demo.stages.length <= 1 ? 0 : Math.round((activeIndex / (demo.stages.length - 1)) * 100);
   document.querySelector("#case-demo-status").textContent = state.caseDemo.playing ? "Playing demo" : "Interactive demo";
   container.innerHTML = `
-    <div class="case-theater-intro">
+    <div class="case-clean-hero">
       <div>
-        <div class="eyebrow">Investor/client demo</div>
+        <div class="eyebrow">Pick a case</div>
         <h3>${escapeHtml(demo.title)}</h3>
         <p>${escapeHtml(demo.problem)}</p>
       </div>
@@ -6693,88 +6697,60 @@ function renderCaseTheater() {
         .map(
           (item) => `
             <button class="case-picker-card ${item.id === demo.id ? "active" : ""}" data-case-demo="${escapeHtml(item.id)}">
-              <span>${escapeHtml(item.industry)}</span>
               <strong>${escapeHtml(item.title)}</strong>
-              <small>${escapeHtml(item.before)} -> ${escapeHtml(item.after)}</small>
+              <small>${escapeHtml(item.industry)}</small>
             </button>
           `,
         )
         .join("")}
     </div>
 
-    <div class="case-demo-shell">
-      <div class="case-demo-screen">
-        <div class="demo-progress-line">
-          <div style="width: ${progress}%"></div>
-          <span style="left: ${progress}%"></span>
-        </div>
-        <div class="case-stage-rail">
+    <div class="simple-case-stage">
+      <span>Workflow</span>
+      <strong>${escapeHtml(activeIndex + 1)} / ${escapeHtml(demo.stages.length)}</strong>
+    </div>
+
+    <div class="simple-case-flow">
           ${demo.stages
             .map((stage, index) => {
               const status = index < activeIndex ? "done" : index === activeIndex ? "active" : "upcoming";
               return `
-                <button class="case-stage ${status}" data-case-step="${index}">
-                  <span class="case-step-number">${index + 1}</span>
-                  <span class="badge ${String(stage.layer).toLowerCase().replace("/", "-")}">${escapeHtml(stage.layer)}</span>
+                <button class="simple-flow-step ${status}" data-case-step="${index}">
+                  <span>${index + 1}</span>
                   <strong>${escapeHtml(stage.title)}</strong>
-                  <small>${escapeHtml(stage.module)}</small>
                 </button>
               `;
             })
             .join("")}
-        </div>
-
-        <div class="case-motion-board">
-          <article class="motion-card input">
-            <span>Input</span>
-            <p>${escapeHtml(activeStage.input)}</p>
-          </article>
-          <div class="motion-arrow">-></div>
-          <article class="motion-card module">
-            <span>PRAXIS module</span>
-            <strong>${escapeHtml(activeStage.module)}</strong>
-            <p>Current step ${activeIndex + 1} of ${demo.stages.length}</p>
-          </article>
-          <div class="motion-arrow">-></div>
-          <article class="motion-card output">
-            <span>Output</span>
-            <p>${escapeHtml(activeStage.output)}</p>
-          </article>
-        </div>
-      </div>
-
-      <aside class="case-explainer">
-        <div class="case-explainer-top">
-          <span class="badge ${String(activeStage.layer).toLowerCase().replace("/", "-")}">${escapeHtml(activeStage.layer)}</span>
-          <strong>${escapeHtml(activeStage.module)}</strong>
-        </div>
-        <h3>${escapeHtml(activeStage.title)}</h3>
-        <div class="plain-explainer">
-          <span>What is happening now</span>
-          <p>${escapeHtml(activeStage.simple)}</p>
-        </div>
-        <div class="plain-explainer">
-          <span>Human gate</span>
-          <p>${escapeHtml(demo.humanGate)}</p>
-        </div>
-        <div class="case-metrics">
-          <article>
-            <span>Before PRAXIS</span>
-            <strong>${escapeHtml(demo.before)}</strong>
-          </article>
-          <article>
-            <span>After PRAXIS</span>
-            <strong>${escapeHtml(demo.after)}</strong>
-          </article>
-          <article>
-            <span>Expected ROI</span>
-            <strong>${escapeHtml(demo.roi)}</strong>
-          </article>
-        </div>
-      </aside>
     </div>
 
-    <p class="case-demo-note">Click a case, then press Play. The visual packet moves left to right and shows which PRAXIS module activates at each stage.</p>
+    <div class="simple-case-story">
+      <article>
+        <span>Situation</span>
+        <p>${escapeHtml(activeStage.input)}</p>
+      </article>
+      <article class="active">
+        <span>What PRAXIS does</span>
+        <h3>${escapeHtml(activeStage.title)}</h3>
+        <p>${escapeHtml(activeStage.simple)}</p>
+      </article>
+      <article>
+        <span>Result</span>
+        <p>${escapeHtml(activeStage.output)}</p>
+      </article>
+    </div>
+
+    <div class="simple-case-bottom">
+      <article>
+        <span>Human check</span>
+        <p>${escapeHtml(demo.humanGate)}</p>
+      </article>
+      <article>
+        <span>Business result</span>
+        <strong>${escapeHtml(demo.before)} -> ${escapeHtml(demo.after)}</strong>
+        <p>${escapeHtml(demo.roi)}</p>
+      </article>
+    </div>
   `;
 
   document.querySelectorAll("[data-case-demo]").forEach((button) => {

@@ -828,6 +828,271 @@ p {
   margin: 0;
 }
 
+body.demo-clean {
+  background: #fbfaf5;
+}
+
+body.demo-clean .app-shell {
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+body.demo-clean .sidebar {
+  padding: 22px 16px;
+}
+
+body.demo-clean .brand {
+  padding-bottom: 18px;
+}
+
+body.demo-clean .nav {
+  gap: 4px;
+}
+
+body.demo-clean .nav-icon,
+body.demo-clean .sidebar-card,
+body.demo-clean .metrics-strip,
+body.demo-clean #export-workspace,
+body.demo-clean .file-button,
+body.demo-clean #reset-demo,
+body.demo-clean #run-demo {
+  display: none;
+}
+
+body.demo-clean .nav-item {
+  padding: 13px 14px;
+  font-size: 15px;
+}
+
+body.demo-clean .nav-item:not([data-view="intake"]):not([data-view="workspace"]):not([data-view="cases"]):not([data-view="pilot"]):not([data-view="evals"]):not([data-view="readout"]) {
+  display: none;
+}
+
+body.demo-clean .main {
+  padding: 26px 34px;
+}
+
+body.demo-clean .topbar {
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+body.demo-clean .topbar .eyebrow {
+  display: none;
+}
+
+body.demo-clean h1 {
+  font-size: 32px;
+}
+
+body.demo-clean .panel {
+  box-shadow: none;
+}
+
+body.demo-clean .case-theater-panel {
+  padding: 22px;
+}
+
+body.demo-clean .case-theater-panel > .panel-header {
+  display: none;
+}
+
+.case-clean-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.case-clean-hero h3 {
+  margin: 4px 0 8px;
+  font-size: 30px;
+  line-height: 1.05;
+}
+
+.case-clean-hero p {
+  max-width: 820px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 17px;
+}
+
+body.demo-clean .case-picker {
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
+}
+
+body.demo-clean .case-picker-card {
+  min-height: 86px;
+  align-content: center;
+  gap: 8px;
+  padding: 14px;
+}
+
+body.demo-clean .case-picker-card span {
+  display: none;
+}
+
+body.demo-clean .case-picker-card strong {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+body.demo-clean .case-picker-card small {
+  font-size: 11px;
+}
+
+.simple-case-stage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.simple-case-stage strong {
+  color: var(--ink);
+}
+
+.simple-case-flow {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.simple-flow-step {
+  position: relative;
+  display: grid;
+  min-height: 112px;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.simple-flow-step::after {
+  content: "";
+  position: absolute;
+  top: 27px;
+  right: -11px;
+  width: 10px;
+  height: 2px;
+  background: var(--line);
+}
+
+.simple-flow-step:last-child::after {
+  display: none;
+}
+
+.simple-flow-step span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf1ec;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.simple-flow-step strong {
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.simple-flow-step.done {
+  background: var(--green-soft);
+  border-color: rgba(47, 125, 87, 0.32);
+}
+
+.simple-flow-step.done span {
+  background: var(--green);
+  color: #fffdf7;
+}
+
+.simple-flow-step.active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fffdf7;
+  transform: translateY(-2px);
+}
+
+.simple-flow-step.active span {
+  background: var(--gold);
+  color: #fffdf7;
+}
+
+.simple-flow-step.upcoming {
+  opacity: 0.7;
+}
+
+.simple-case-story {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.simple-case-story article,
+.simple-case-bottom article {
+  min-height: 165px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 18px;
+}
+
+.simple-case-story article.active {
+  border-color: rgba(196, 135, 42, 0.7);
+  background: var(--gold-soft);
+}
+
+.simple-case-story span,
+.simple-case-bottom span {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.simple-case-story h3 {
+  margin-bottom: 10px;
+  font-size: 24px;
+}
+
+.simple-case-story p,
+.simple-case-bottom p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.simple-case-bottom {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 12px;
+}
+
+.simple-case-bottom strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ink);
+  font-size: 24px;
+}
+
 .layer-grid,
 .tool-grid,
 .playbook-grid {
@@ -3725,7 +3990,7 @@ p {
 
 </style>
   </head>
-  <body>
+  <body class="demo-clean">
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
@@ -4898,10 +5163,15 @@ const ruDictionary = new Map(
       "Нажми Play и посмотри, как клиентский workflow проходит через PRAXIS.",
     "Interactive demo": "Интерактивное демо",
     "Playing demo": "Демо играет",
+    "Pick a case": "Выбери кейс",
     "Play": "Play",
     "Pause": "Pause",
     "Next step": "Следующий шаг",
     "Reset": "Сброс",
+    "Situation": "Ситуация",
+    "Result": "Результат",
+    "Human check": "Проверка человеком",
+    "Business result": "Бизнес-результат",
     "What is happening now": "Что сейчас происходит",
     "Why it matters": "Почему это важно",
     "Input": "Вход",
@@ -11494,12 +11764,11 @@ function renderCaseTheater() {
   const demo = getSelectedCaseDemo();
   const activeIndex = Math.min(state.caseDemo.activeStep, demo.stages.length - 1);
   const activeStage = demo.stages[activeIndex];
-  const progress = demo.stages.length <= 1 ? 0 : Math.round((activeIndex / (demo.stages.length - 1)) * 100);
   document.querySelector("#case-demo-status").textContent = state.caseDemo.playing ? "Playing demo" : "Interactive demo";
   container.innerHTML = `
-    <div class="case-theater-intro">
+    <div class="case-clean-hero">
       <div>
-        <div class="eyebrow">Investor/client demo</div>
+        <div class="eyebrow">Pick a case</div>
         <h3>${escapeHtml(demo.title)}</h3>
         <p>${escapeHtml(demo.problem)}</p>
       </div>
@@ -11515,88 +11784,60 @@ function renderCaseTheater() {
         .map(
           (item) => `
             <button class="case-picker-card ${item.id === demo.id ? "active" : ""}" data-case-demo="${escapeHtml(item.id)}">
-              <span>${escapeHtml(item.industry)}</span>
               <strong>${escapeHtml(item.title)}</strong>
-              <small>${escapeHtml(item.before)} -> ${escapeHtml(item.after)}</small>
+              <small>${escapeHtml(item.industry)}</small>
             </button>
           `,
         )
         .join("")}
     </div>
 
-    <div class="case-demo-shell">
-      <div class="case-demo-screen">
-        <div class="demo-progress-line">
-          <div style="width: ${progress}%"></div>
-          <span style="left: ${progress}%"></span>
-        </div>
-        <div class="case-stage-rail">
+    <div class="simple-case-stage">
+      <span>Workflow</span>
+      <strong>${escapeHtml(activeIndex + 1)} / ${escapeHtml(demo.stages.length)}</strong>
+    </div>
+
+    <div class="simple-case-flow">
           ${demo.stages
             .map((stage, index) => {
               const status = index < activeIndex ? "done" : index === activeIndex ? "active" : "upcoming";
               return `
-                <button class="case-stage ${status}" data-case-step="${index}">
-                  <span class="case-step-number">${index + 1}</span>
-                  <span class="badge ${String(stage.layer).toLowerCase().replace("/", "-")}">${escapeHtml(stage.layer)}</span>
+                <button class="simple-flow-step ${status}" data-case-step="${index}">
+                  <span>${index + 1}</span>
                   <strong>${escapeHtml(stage.title)}</strong>
-                  <small>${escapeHtml(stage.module)}</small>
                 </button>
               `;
             })
             .join("")}
-        </div>
-
-        <div class="case-motion-board">
-          <article class="motion-card input">
-            <span>Input</span>
-            <p>${escapeHtml(activeStage.input)}</p>
-          </article>
-          <div class="motion-arrow">-></div>
-          <article class="motion-card module">
-            <span>PRAXIS module</span>
-            <strong>${escapeHtml(activeStage.module)}</strong>
-            <p>Current step ${activeIndex + 1} of ${demo.stages.length}</p>
-          </article>
-          <div class="motion-arrow">-></div>
-          <article class="motion-card output">
-            <span>Output</span>
-            <p>${escapeHtml(activeStage.output)}</p>
-          </article>
-        </div>
-      </div>
-
-      <aside class="case-explainer">
-        <div class="case-explainer-top">
-          <span class="badge ${String(activeStage.layer).toLowerCase().replace("/", "-")}">${escapeHtml(activeStage.layer)}</span>
-          <strong>${escapeHtml(activeStage.module)}</strong>
-        </div>
-        <h3>${escapeHtml(activeStage.title)}</h3>
-        <div class="plain-explainer">
-          <span>What is happening now</span>
-          <p>${escapeHtml(activeStage.simple)}</p>
-        </div>
-        <div class="plain-explainer">
-          <span>Human gate</span>
-          <p>${escapeHtml(demo.humanGate)}</p>
-        </div>
-        <div class="case-metrics">
-          <article>
-            <span>Before PRAXIS</span>
-            <strong>${escapeHtml(demo.before)}</strong>
-          </article>
-          <article>
-            <span>After PRAXIS</span>
-            <strong>${escapeHtml(demo.after)}</strong>
-          </article>
-          <article>
-            <span>Expected ROI</span>
-            <strong>${escapeHtml(demo.roi)}</strong>
-          </article>
-        </div>
-      </aside>
     </div>
 
-    <p class="case-demo-note">Click a case, then press Play. The visual packet moves left to right and shows which PRAXIS module activates at each stage.</p>
+    <div class="simple-case-story">
+      <article>
+        <span>Situation</span>
+        <p>${escapeHtml(activeStage.input)}</p>
+      </article>
+      <article class="active">
+        <span>What PRAXIS does</span>
+        <h3>${escapeHtml(activeStage.title)}</h3>
+        <p>${escapeHtml(activeStage.simple)}</p>
+      </article>
+      <article>
+        <span>Result</span>
+        <p>${escapeHtml(activeStage.output)}</p>
+      </article>
+    </div>
+
+    <div class="simple-case-bottom">
+      <article>
+        <span>Human check</span>
+        <p>${escapeHtml(demo.humanGate)}</p>
+      </article>
+      <article>
+        <span>Business result</span>
+        <strong>${escapeHtml(demo.before)} -> ${escapeHtml(demo.after)}</strong>
+        <p>${escapeHtml(demo.roi)}</p>
+      </article>
+    </div>
   `;
 
   document.querySelectorAll("[data-case-demo]").forEach((button) => {
