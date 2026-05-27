@@ -35,6 +35,8 @@ Then open:
 http://localhost:4173
 ```
 
+For a no-server demo, open `PRAXIS_DEMO_STANDALONE.html`. It is a single-file HTML bundle with CSS and JavaScript inlined, so it can be shared or opened directly from disk.
+
 You can still open `index.html` directly in a browser. In that mode PRAXIS falls back to browser `localStorage` and cannot save Pilot Console runs to the backend.
 
 No package install is required for this version. The server uses only built-in Node.js modules.
