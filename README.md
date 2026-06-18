@@ -1,153 +1,154 @@
-# PRAXIS MVP
+# PRAXIS
 
-PRAXIS is a local prototype for an FDE Operating System.
+**An operating system for Forward-Deployed Engineering.**
 
-It demonstrates the first product wedge:
+> If an AI agent is a new hire, PRAXIS is the onboarding, the runbook, and the manager.
 
-1. Paste a messy client process into AI Intake.
-2. Generate a structured deployment workspace.
-3. Show visual case demos where a workflow moves through PRAXIS step by step.
-4. Build a context graph of people, systems, tools, and controls.
-5. Map client systems into data connectors with access, PII, owners, and readiness.
-6. Convert APIs into an agent-ready Tool Fabric.
-7. Define governance, approvals, and audit policy.
-8. Map the enterprise workflow.
-9. Score AI deployment opportunities.
-10. Model ROI, hours saved, adoption, payback, and platform cost.
-11. Build a human-in-the-loop agent workflow.
-12. Watch a pilot case move through connectors, tools, agent runtime, evals, approvals, and audit.
-13. Run an eval suite.
-14. Build a 30-day deployment plan.
-15. Generate an executive readout.
-16. Save the pattern as a reusable playbook.
+PRAXIS turns a messy enterprise client engagement into a structured, governed AI deployment workspace. It maps the client's processes, wires up their systems as agent-ready tools, scores where AI actually creates value, models the ROI, and ships human-in-the-loop agent workflows with evals, approvals, and an audit trail — so a forward-deployed engineer can go from "first client call" to "deployed, defensible AI" without rebuilding the plumbing every time.
 
-## How to open
+---
 
-For the full local app with backend persistence:
+## The problem
 
-```powershell
-npm start
+Forward-deployed engineering is the fastest-growing role in AI — but FDEs do it with duct tape: Notion docs for process maps, ad-hoc scripts for integrations, screenshots for ROI, and zero governance. Every engagement starts from zero, nothing is reusable, and nothing is audit-ready when the client's security team shows up.
+
+PRAXIS is the missing control plane.
+
+---
+
+## What you do with it
+
+| Step | Example |
+| --- | --- |
+| 01 — Map the engagement | Import the client's process ("AML alert triage"), systems, and stakeholders into a context graph. |
+| 02 — Wire the tools | Point PRAXIS at the client's OpenAPI specs; it generates an agent-ready Tool Fabric with auth and schemas. |
+| 03 — Score & model | Rank automation opportunities by value/feasibility/risk; model ROI and payback. |
+| 04 — Ship with guardrails | Generate a human-in-the-loop workflow with eval gates, approval steps, and a full audit log. |
+
+---
+
+## PRAXIS is for you if
+
+- ✅ You're a forward-deployed / solutions / applied-AI engineer embedding with enterprise clients
+- ✅ You keep rebuilding the same connectors, governance, and ROI decks for every deployment
+- ✅ Your clients' security teams need RBAC, SSO/SCIM, and audit trails before anything ships
+- ✅ You want agents that act on real client systems — safely, with a human in the loop
+- ✅ You need to *prove* value (ROI, payback) to the people who sign the renewal
+
+---
+
+## Features
+
+🗺️ **Context Graph** — People, systems, processes, controls and their relationships, modeled as a graph the agents can reason over.
+
+🔌 **Connectors** — Client systems wired in with PII / data-owner / readiness checks before anything is exposed to an agent.
+
+🛠️ **Tool Fabric** — Converts OpenAPI specs into agent-ready tools with auth and JSON schemas, and scaffolds MCP servers.
+
+🧠 **LLM Intake Engine** — OpenAI-compatible adapter with JSON-schema validation, repair/retry, and deterministic fallback so structured outputs don't break in production.
+
+🎯 **Opportunity Scoring** — Ranks candidate automations by business value, feasibility, and risk.
+
+💰 **ROI & Payback Modeling** — Turns each opportunity into a defensible business case.
+
+🛡️ **Governance** — RBAC, SSO/SCIM, approval gates, and an immutable audit trail. Built for the client's security review.
+
+✅ **Eval Gates** — Every agent workflow runs through evals (coverage, hallucination checks, regression tracking) before it's allowed to act.
+
+👤 **Human-in-the-Loop** — Approvals and overrides on every consequential action.
+
+---
+
+## What's under the hood
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                        PRAXIS SERVER                          │
+│                                                                │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  │
+│  │  Context  │  │   Tool    │  │   Agent   │  │Governance │  │
+│  │   Graph   │  │  Fabric   │  │  Runtime  │  │ & Audit   │  │
+│  └───────────┘  └───────────┘  └───────────┘  └───────────┘  │
+│                                                                │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  │
+│  │Connectors │  │ LLM Intake│  │   Evals   │  │  ROI &    │  │
+│  │ (+PII/RBAC│  │(schema +  │  │  & Gates  │  │  Payback  │  │
+│  │  checks)  │  │ repair)   │  │           │  │  Model    │  │
+│  └───────────┘  └───────────┘  └───────────┘  └───────────┘  │
+└──────────────────────────────────────────────────────────────┘
+        ▲               ▲               ▲               ▲
+   OpenAPI specs   Client systems   LLM provider    Web dashboard
 ```
 
-Then open:
+**Context Graph** — entities (people, systems, processes, controls) and edges, so an agent always has the "why" behind a task, not just a prompt.
 
-```text
-http://localhost:4173
+**Connectors** — each client system is registered with access mode, data owner, PII flags, and a readiness check; nothing reaches an agent until it passes.
+
+**Tool Fabric** — ingests OpenAPI, emits typed, auth-aware tools, and auto-generates MCP server scaffolds so agents can call client APIs safely.
+
+**LLM Intake Engine** — provider-agnostic (OpenAI-compatible) adapter with JSON-schema validation, automatic repair/retry, and a deterministic rule-based fallback when no key is set.
+
+**Agent Runtime** — executes human-in-the-loop workflows, each gated by evals and approvals; every tool call is traced.
+
+**Governance & Audit** — RBAC, SSO/SCIM, approval policies, and an immutable activity log built for enterprise security review.
+
+**ROI & Payback Model** — scores opportunities and produces an executive-ready business case per workflow.
+
+---
+
+## Demo
+
+The included demo deploys an **AML alert-briefing agent**: it ingests an alert, pulls context through the Tool Fabric, drafts an investigator briefing, and routes it for human approval — cutting investigation prep from **~45 minutes to ~9 minutes** while preserving compliance controls.
+
+Open `PRAXIS_DEMO_STANDALONE.html` for the interactive walkthrough.
+
+---
+
+## Tech stack
+
+- **Backend:** Node.js, ~40 REST endpoints (`server.js`)
+- **Frontend:** vanilla JS + CSS dashboard (`app.js`, `index.html`, `styles.css`)
+- **Data:** PostgreSQL-ready schema (`schema.sql`)
+- **AI:** OpenAI-compatible LLM adapter (Anthropic / OpenAI), JSON-schema-validated structured outputs, MCP
+- **Deploy:** Dockerfile + docker-compose
+
+---
+
+## Quickstart
+
+```bash
+git clone https://github.com/westfellow25/praxis.git
+cd praxis
+npm install
+cp .env.example .env        # add your LLM API key (optional — falls back to rule-based)
+node server.js              # API + dashboard on http://localhost:3000
 ```
 
-For a no-server demo, open `PRAXIS_DEMO_STANDALONE.html`. It is a single-file HTML bundle with CSS and JavaScript inlined, so it can be shared or opened directly from disk.
+Or run the standalone demo with no setup: open `PRAXIS_DEMO_STANDALONE.html` in a browser.
 
-You can still open `index.html` directly in a browser. In that mode PRAXIS falls back to browser `localStorage` and cannot save Pilot Console runs to the backend.
+See `DEPLOYMENT.md` for Docker and `DATABASE_SCHEMA.md` for the data model.
 
-No package install is required for this version. The server uses only built-in Node.js modules.
+---
 
-## Local backend
+## What PRAXIS is not
 
-The backend lives in `server.js` and exposes:
+- **Not an agent framework.** Bring your own agents/models — PRAXIS governs the engagement they run inside.
+- **Not a chatbot.** Agents have scoped tools, approvals, and audit — not a chat window.
+- **Not a no-code toy.** It models real enterprise deployments: connectors, RBAC, evals, ROI.
 
-- `GET /api/health`
-- `GET /api/database/status`
-- `POST /api/database/backup`
-- `GET /api/auth/session`
-- `POST /api/auth/switch-user`
-- `POST /api/security/check`
-- `POST /api/scim/sync`
-- `GET /api/collaboration`
-- `POST /api/collaboration/comments`
-- `POST /api/collaboration/tasks`
-- `GET /api/deployment/manifest`
-- `GET /api/workspace`
-- `PUT /api/workspace`
-- `GET /api/playbooks`
-- `PUT /api/playbooks`
-- `GET /api/playbooks/registry`
-- `POST /api/playbooks/publish`
-- `POST /api/playbooks/registry/use`
-- `GET /api/runs`
-- `POST /api/runs`
-- `GET /api/evals/history`
-- `GET /api/handoffs`
-- `GET /api/handoffs/alerts`
-- `PATCH /api/handoffs/:id`
-- `GET /api/telemetry`
-- `GET /api/documents`
-- `POST /api/documents`
-- `POST /api/documents/upload`
-- `POST /api/documents/search`
-- `POST /api/retrieval/query`
-- `POST /api/context/graph`
-- `POST /api/context/search`
-- `POST /api/connectors/test`
-- `DELETE /api/documents/:id`
-- `POST /api/agent/run`
-- `POST /api/intake`
-- `POST /api/intake/workspace`
-- `POST /api/evals/run`
-- `POST /api/openapi/import`
-- `POST /api/mcp/generate`
-- `POST /api/tools/sandbox`
-- `POST /api/governance/check`
-- `POST /api/governance/enforce`
+---
 
-The local database is `data/praxis-db.json`.
+## Roadmap
 
-See `DATABASE_SCHEMA.md` for the current schema.
-See `schema.sql` for the Postgres-ready schema draft.
+- [x] Context graph + connectors with PII/readiness checks
+- [x] OpenAPI → Tool Fabric + MCP scaffolding
+- [x] Governance (RBAC/SSO/SCIM), approvals, audit log
+- [x] Eval gates on the agent runtime
+- [x] ROI / payback modeling + AML demo
+- [ ] Reusable engagement templates (export/import)
+- [ ] Multi-client isolation in one deployment
+- [ ] Live eval dashboards & regression history
 
-`POST /api/intake/workspace` is the first backend intake engine. It takes messy client notes and returns a structured workspace patch: best template, KPI timings, human-review target, source systems, connector patches, success metric, and first-agent summary. By default it uses a deterministic extractor. If `.env` includes `LLM_ENDPOINT`, `LLM_MODEL`, and `LLM_API_KEY`, the backend uses an OpenAI-compatible chat-completions adapter with schema validation, repair/retry, and deterministic fallback if the provider fails or returns invalid JSON.
+---
 
-## Roadmap checklist
-
-Open `REMAINING_CHECKLIST.html` for a color-coded roadmap:
-
-- Green: done enough for MVP.
-- Orange: partially done or next layer.
-- Red: not started or critical for the next product phase.
-
-## What works in this version
-
-- Edit the client brief and KPI metrics.
-- Generate a workspace from a raw process description through the backend intake engine, with schema validation, repair/retry, and browser fallback.
-- Switch between demo users, inspect RBAC permissions, run SSO/SCIM/RBAC security checks, and sync a local SCIM manifest.
-- Use four demo intake presets: banking AML, insurance claims, legal review, and SaaS support.
-- Open Cases and press Play to show five visual workflow demos: banking AML, insurance claims, pharma safety, legal review, and SaaS support.
-- View, sync, and search a generated Context Graph with people, systems, agent tools, controls, lineage, and readiness blockers.
-- Manage connector readiness across source systems, data classes, access modes, refresh cadence, and blockers.
-- Run connector dry-run tests that check access, owner, data controls, refresh cadence, Knowledge Base evidence, and pilot gates before agents rely on sources.
-- View an ingestion plan that explains how PRAXIS connects, masks, indexes, and proves client data.
-- Upload or paste `.txt`, `.md`, `.json`, `.pdf`, and `.docx` client documents into Knowledge Base.
-- Extract document summaries, chunks, keywords, systems, and risk signals for retrieval-ready context.
-- Extract text from text-based PDFs and DOCX files with a built-in no-dependency parser for MVP validation.
-- Query document chunks through backend retrieval and show citations inside the Pilot Run Console evidence packet.
-- Paste OpenAPI JSON specs into Tool Fabric and turn operations into agent-ready tools.
-- Generate an MCP server scaffold from the current Tool Fabric.
-- Run Tool Sandbox dry-runs that validate callable contracts, owners, auth, approval requirements, readiness gates, and failure modes before agents use tools.
-- Score API/tool readiness and edit owner, auth model, risk, callable signatures, and descriptions.
-- Generate an MCP-style tool manifest preview.
-- Manage governance policies, approval gates, audit trail requirements, and governance readiness.
-- Add shared comments, mentions, tasks, owners, due dates, and decision notes in Collaboration.
-- Run a governance pre-flight check that flags blocked connectors, sensitive data, high-risk tools, pending approvals, and audit gaps.
-- Run runtime governance enforcement that returns allow/approval/block decisions, masks sensitive input, builds a tool secrets manifest, and records the enforcement audit event.
-- Run the backend Agent Runtime from Pilot Console and inspect a saved case trace, state machine, retry policy, evidence packet, decision boundary, approval route, latency, cost estimate, and audit payload.
-- Browse saved Pilot Console run history with trace steps, evidence counts, tool counts, confidence, and human-review state.
-- Manage a Human Handoff Queue created by Agent Runtime, with approve, escalate, block, overdue, due-soon, and escalated SLA reminders saved back to the backend.
-- Calculate annual net value, monthly hours saved, payback, conservative/base/upside scenarios, and runtime telemetry from saved agent runs.
-- Edit eval cases with input, expected output, category, severity, and last actual result.
-- Run a backend eval gate that reports pass, warning, failure, critical blockers, retrieval coverage, recommendation-match score, hallucination warnings, regressions, and pilot readiness.
-- Track eval run history as a regression baseline across repeated pilot tests.
-- Include retrieval coverage in backend eval runs when Knowledge Base documents exist.
-- Manage a deployment timeline, rollout checklist, blockers, owners, statuses, and exit criteria.
-- Generate a hosted deployment manifest and use `Dockerfile`, `.dockerignore`, and `DEPLOYMENT.md` as the first cloud-ready package.
-- Save the current workspace as a reusable playbook.
-- Search playbooks, publish versioned packages into a local marketplace registry, track usage, and clone packages back into the active workspace.
-- Save the workspace to browser local storage.
-- Inspect local database health, schema version, collection counts, file size, migrations, and backups.
-- Create manual JSON database backups from the Workspace editor.
-- Export the workspace as JSON.
-- Import a previously exported workspace JSON file.
-- Add, edit, and delete process-map steps.
-- Run a simulated eval gate and generate an executive readout.
-
-## Demo case
-
-The included demo is an AML Alert Briefing Agent for a bank. The goal is to show how PRAXIS helps an FDE reduce investigation prep time from 45 minutes to 9 minutes while preserving human approval and compliance controls.
+Built by [@westfellow25](https://github.com/westfellow25).
